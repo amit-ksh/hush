@@ -10,10 +10,15 @@ import { GameAudio } from './audio.js';
 import { Hud } from './hud.js';
 import { lineOfSight } from './pathfind.js';
 import { MicMonitor } from './mic.js';
+import { ScareDirector, performScare, SCARE_LABELS, SCARE_IDS as SCARE_IDS_ALL } from './scares.js';
 
 const $ = (id) => document.getElementById(id);
 const SMOKE = location.hash === '#smoke';
 const SMOKE_LIVE = location.hash === '#smoke-live';
+let ERRS = 0;
+const _ce = console.error.bind(console);
+console.error = (...a) => { ERRS++; _ce(...a); };
+window.addEventListener('unhandledrejection', (e) => { ERRS++; _ce('[hush] unhandled rejection', e.reason && e.reason.message); });
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const canvas = $('gl');
@@ -149,7 +154,7 @@ function startGame() {
   const world = new World(level, renderer);
   const player = new Player(level, world.camera);
   const creature = new Creature(level, mulberry32(seed ^ 0x9e3779b9));
-  game = { level, world, player, creature, hasKey: false, sawEnter: false, unlocked: false, t: 0, peakBpm: 0, seed, frames: 0, creatureDist: 99 };
+  game = { director: new ScareDirector({ rnd: mulberry32(seed ^ 0x51ed) }), scareLog: [], bpmHist: [], bpmSlow: 0, histAcc: 0, level, world, player, creature, hasKey: false, sawEnter: false, unlocked: false, t: 0, peakBpm: 0, seed, frames: 0, creatureDist: 99 };
   noise.value = 0; noise.impulse = 0;
   player.locked = !!document.pointerLockElement || SMOKE;
   if (SMOKE) { player.keys.add('KeyW'); player.yaw = 1.2; }
@@ -206,6 +211,15 @@ function hideTarget() {
   return best;
 }
 
+function fireScare(id) {
+  const g = game;
+  const ok = performScare(id, { world: g.world, player: g.player, creature: g.creature, audio, hud, bio, level: g.level });
+  if (!ok) { g.director.failed(); return false; }
+  g.scareLog.push({ t: g.t, id, bpm0: g.bpmSlow, peak: g.bpmSlow, until: g.t + 10 });
+  console.log('[hush] scare', id);
+  return true;
+}
+
 // A real sound from the player (mic spike): the creature hears it at the player's position.
 function soundEvent(loudness) {
   const g = game; if (!g || phase !== 'play') return;
@@ -234,6 +248,17 @@ function caught() {
   setTimeout(() => { $('scare').classList.remove('show'); endGame(false); }, 1500);
 }
 
+function drawEndGraph(g) {
+  const c = $('endGraph').getContext('2d'), W = 420, H = 80; c.clearRect(0, 0, W, H);
+  const pts = g.bpmHist; const vals = pts.filter((v) => v);
+  if (vals.length < 2) return;
+  const lo = Math.min(...vals) - 5, hi = Math.max(...vals) + 5, n = pts.length;
+  const X = (i) => 6 + (i / Math.max(1, n - 1)) * (W - 12), Y = (v) => H - 6 - ((v - lo) / (hi - lo)) * (H - 12);
+  c.strokeStyle = '#6fcf97'; c.lineWidth = 1.5; c.beginPath(); let started = false;
+  pts.forEach((v, i) => { if (!v) return; if (!started) { c.moveTo(X(i), Y(v)); started = true; } else c.lineTo(X(i), Y(v)); }); c.stroke();
+  c.strokeStyle = '#c0392b'; for (const e of g.scareLog) { const x = X(Math.min(n - 1, e.t)); c.beginPath(); c.moveTo(x, 2); c.lineTo(x, H - 2); c.stroke(); }
+}
+
 function endGame(win) {
   const g = game;
   phase = 'end'; hud.show(false);
@@ -245,6 +270,9 @@ function endGame(win) {
   const rows = [['Time', `${Math.floor(t / 60)}m ${t % 60}s`], ['Peak pulse (game signal)', g.peakBpm > 0 ? `${Math.round(g.peakBpm)} bpm` : 'n/a'],
     ['Times hunted', g.creature.timesHunted], ['Seed', g.seed], ['Signal source', bio.mode === 'live' ? 'live camera' : 'simulated']];
   $('endStats').innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+  drawEndGraph(g);
+  const best = g.scareLog.filter((e) => e.bpm0 > 0).sort((a, b) => (b.peak - b.bpm0) - (a.peak - a.bpm0))[0];
+  $('endScare').textContent = best && best.peak - best.bpm0 >= 1 ? 'Biggest scare: ' + SCARE_LABELS[best.id] + ', +' + Math.round(best.peak - best.bpm0) + ' BPM (game signal)' : (g.scareLog.length ? 'Scares this run: ' + g.scareLog.length : '');
   showScreen('end');
   mic.stop();
   // privacy: camera off whenever we are not playing
@@ -310,12 +338,22 @@ function playTick(dt) {
   const cd = Math.hypot(creature.x - px, creature.y - py); g.creatureDist = cd;
   bio.setSimContext({ sprinting: player.sprinting, threat: clamp(1 - cd / 12, 0, 1), hunted: creature.state === S.HUNT });
   const b = bio.update(dt);
-  if (b.bpm > 0 && b.bpm < 220) g.peakBpm = Math.max(g.peakBpm, b.bpm);
+  if (b.bpm > 0 && b.bpm < 220) {
+    g.peakBpm = Math.max(g.peakBpm, b.bpm);
+    g.bpmSlow = g.bpmSlow ? g.bpmSlow + (b.bpm - g.bpmSlow) * Math.min(1, dt / 3) : b.bpm;
+  }
+  g.histAcc += dt; if (g.histAcc >= 1) { g.histAcc = 0; g.bpmHist.push(b.bpm > 0 && b.bpm < 220 ? b.bpm : null); }
+  for (const e of g.scareLog) if (g.t < e.until && b.bpm > 0 && b.bpm < 220) e.peak = Math.max(e.peak, b.bpm);
+  if (!SMOKE) {
+    const chase = [S.HUNT, S.SEARCH, S.CATCH].includes(creature.state);
+    const sid = g.director.update(dt, { chase });
+    if (sid) fireScare(sid);
+  }
   player.update(dt);
   const m = mic.update(dt);
   if (m.event) soundEvent(m.event.loudness, m.event.over);
   noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: m.noise });
-  creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
+  if (!SMOKE || g.t > 9) creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
   if (player.gasp) { noise.addImpulse(30); audio.zap(); hud.msg('You gasp for air.', 2); }
   world.highlight(player.hidden ? null : hideTarget());
   world.setCreature(creature.x * T, creature.y * T, creature.heading, creature.speed, dt, creature.state === S.HUNT);
@@ -336,8 +374,46 @@ function playTick(dt) {
   if (g.unlocked && Math.hypot(player.x - level.exit.x * T, player.z - level.exit.y * T) < 0.9) { audio.win(); endGame(true); return; }
   // jump-scare camera snap
   if (creature.state === S.CATCH) { player.yaw = Math.atan2(player.x - creature.x * T, player.z - creature.y * T) + Math.PI; }
-  if (SMOKE && g.t > 4 && !g.logged) { g.logged = true;
-    console.log(`[smoke] OK frames=${g.frames} noise=${noise.value.toFixed(1)} state=${creature.state} bpm=${b.bpm.toFixed(0)} src=${b.source} player=(${player.tileX.toFixed(1)},${player.tileY.toFixed(1)})`);
+  if (SMOKE) smokeStep(g, b, dt);
+}
+
+// ---------------------------------------------------------------- smoke test hook (HUSH_SMOKE=1)
+const smoke = { scares: {}, i: 0, micFired: false, hid: false, searched: false, gaveUp: false, done: false, errs: [] };
+function smokeStep(g, b, dt) {
+  const { player, creature, level } = g, T = level.TILE;
+  const guard = (name, fn) => { try { return fn(); } catch (e) { ERRS++; console.error('[smoke] ' + name + ' threw: ' + (e && e.stack || e)); return false; } };
+  if (g.t > 2 && player.keys.has('KeyW') && g.t < 2.1) player.keys.delete('KeyW');
+  // each scare type once, 0.7 s apart
+  if (g.t > 2.5 + smoke.i * 0.7 && smoke.i < SCARE_IDS_ALL.length) {
+    const id = SCARE_IDS_ALL[smoke.i++];
+    let ok = false;
+    if (id === 'silhouette') { for (let k = 0; k < 8 && !ok; k++) { player.yaw = k * Math.PI / 4; ok = guard(id, () => fireScare(id)); } }
+    else ok = guard(id, () => fireScare(id));
+    smoke.scares[id] = ok; console.log('[smoke] scare ' + id + ' -> ' + (ok ? 'ok' : 'NOT STAGED'));
+  }
+  if (g.t > 9 && !smoke.micFired) { smoke.micFired = true; mic.injectSpike(0.9); }
+  // hiding + search test: put the creature in the room, hide with "it saw you", expect SEARCH then give-up
+  if (g.t > 10 && !smoke.hid) {
+    smoke.hid = true;
+    const spot = level.hides.find((h) => h.room === level.spawn.room) || level.hides[0];
+    const room = level.rooms[spot.room];
+    player.leaveHiding && player.hidden && player.leaveHiding();
+    player.hideIn(spot); g.sawEnter = true;
+    const free = [[room.cx, room.cy], [room.cx - 1, room.cy], [room.cx, room.cy - 1], [room.cx + 1, room.cy + 1]].find(([x, y]) => !level.solid[y][x]);
+    creature.x = free[0]; creature.y = free[1]; creature.path = []; creature.state = S.WANDER;
+    noise.value = 0; noise.impulse = 0;
+    console.log('[smoke] hiding in ' + spot.type + ' (room ' + room.name + '), creature placed nearby');
+  }
+  if (creature.state === S.SEARCH) smoke.searched = true;
+  if (smoke.searched && creature.state === S.WANDER && !g.sawEnter) smoke.gaveUp = true;
+  if (g.t > 30 && !smoke.done) {
+    smoke.done = true;
+    const allScares = SCARE_IDS_ALL.every((id) => smoke.scares[id]);
+    const mic1 = (g.micEvents || 0) >= 1;
+    const pass = ERRS === 0 && allScares && mic1 && smoke.searched && smoke.gaveUp;
+    console.log('[smoke] OK frames=' + g.frames + ' state=' + creature.state + ' bpm=' + b.bpm.toFixed(0) + ' src=' + b.source);
+    console.log('[smoke] RESULT ' + (pass ? 'PASS' : 'FAIL') + ' scares=' + SCARE_IDS_ALL.filter((id) => smoke.scares[id]).length + '/' + SCARE_IDS_ALL.length +
+      ' micEvents=' + (g.micEvents || 0) + ' searched=' + smoke.searched + ' gaveUp=' + smoke.gaveUp + ' consoleErrors=' + ERRS);
   }
 }
 

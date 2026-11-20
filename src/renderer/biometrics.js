@@ -118,6 +118,8 @@ export class Biometrics {
   }
 
   // ---- simulation ----
+  // Scares bump the simulated pulse (live mode relies on the player's real reaction).
+  simSpike(n) { if (this.mode === 'sim') { this.sim.bpm += n; this.sim.fear = Math.max(this.sim.fear, 40 + n * 2); } }
   setSimContext(ctx) { Object.assign(this.sim.ctx, ctx); }
   setSimKey(name, down) { this.sim.keys[name] = down; }
 

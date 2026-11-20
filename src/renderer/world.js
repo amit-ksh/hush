@@ -31,7 +31,9 @@ export class World {
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 60);
     this.scene.add(this.camera);
 
-    this.scene.add(new THREE.AmbientLight(0x505068, 1.0));
+    this.ambient = new THREE.AmbientLight(0x505068, 1.0);
+    this.scene.add(this.ambient);
+    this.blackoutT = 0; this.shakeT = 0; this.shakeAmp = 0; this.fakeT = 0; this.slabT = 0;
 
     // flashlight
     this.flash = new THREE.SpotLight(0xfff2d0, 8, 26, 0.5, 0.5, 1);
@@ -156,6 +158,10 @@ export class World {
     // creature
     this.creature = this._buildCreature();
     this.scene.add(this.creature.group);
+    // a purely visual fake creature for the silhouette scare, and a slab for the door slam
+    this.fake = this._buildCreature(); this.fake.group.visible = false; this.fake.glow.intensity = 0; this.scene.add(this.fake.group);
+    this.slab = new THREE.Mesh(new THREE.BoxGeometry(TILE, 2.2, 0.1), pbr('rough_pine_door', 1, 1, { roughness: 1 }));
+    this.slab.visible = false; this.scene.add(this.slab);
   }
 
   _buildCreature() {
@@ -188,6 +194,15 @@ export class World {
 
   highlight(prop) { for (const h of this.level.hides) if (h.rim) h.rim.visible = h === prop; }
 
+  blackout(secs) { this.blackoutT = secs; }
+  shake(secs, amp) { this.shakeT = secs; this.shakeAmp = amp; }
+  showFake(x, z, secs, heading) { this.fake.group.position.set(x, 0, z); this.fake.group.rotation.y = heading; this.fake.group.visible = true; this.fakeT = secs; }
+  slamDoor(d) {
+    const T = this.level.TILE;
+    this.slab.position.set(d.x * T, 1.1, d.y * T); this.slab.rotation.y = d.vertical ? Math.PI / 2 : 0;
+    this.slab.visible = true; this.slabT = 1.3;
+  }
+
   hideKey() { this.key.visible = false; this.keyLight.visible = false; }
 
   unlockExit() {
@@ -204,8 +219,23 @@ export class World {
       this._exitT = Math.min(1, this._exitT + dt);
       this.exitDoor.position.y = 1.15 + this._exitT * 2.4;
     }
-    // subtle flicker on some room lights
-    this.roomLights.forEach((l, i) => { l.intensity = 0.9 + (i % 3 === 0 ? (Math.random() - 0.5) * 0.25 * (Math.sin(time * 3 + i) > 0.8 ? 1 : 0) : 0); });
+    // lights: subtle flicker; full blackout scare with a sputtering flashlight
+    if (this.blackoutT > 0) {
+      this.blackoutT -= dt;
+      this.roomLights.forEach((l) => { l.intensity = 0; });
+      this.ambient.intensity = 0.08;
+      this.flash.intensity = Math.random() < 0.5 ? 0 : 1.5 + Math.random() * 3;
+      if (this.blackoutT <= 0) { this.ambient.intensity = 1.0; this.flash.intensity = 8; }
+    } else {
+      this.roomLights.forEach((l, i) => { l.intensity = 0.9 + (i % 3 === 0 ? (Math.random() - 0.5) * 0.25 * (Math.sin(time * 3 + i) > 0.8 ? 1 : 0) : 0); });
+    }
+    if (this.fakeT > 0) { this.fakeT -= dt; if (this.fakeT <= 0) this.fake.group.visible = false; }
+    if (this.slabT > 0) { this.slabT -= dt; this.slab.scale.x = Math.min(1, (1.3 - this.slabT) * 8); if (this.slabT <= 0) this.slab.visible = false; }
+    if (this.shakeT > 0) {
+      this.shakeT -= dt;
+      this.camera.position.x += (Math.random() - 0.5) * this.shakeAmp * 2; this.camera.position.y += (Math.random() - 0.5) * this.shakeAmp * 2;
+      this.camera.rotation.z = (Math.random() - 0.5) * this.shakeAmp * 1.5;
+    } else this.camera.rotation.z = 0;
   }
 
   render() { this.renderer.render(this.scene, this.camera); }

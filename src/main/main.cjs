@@ -42,9 +42,15 @@ try {
 
 const DIAG = process.env.SMARTSPECTRA_DIAGNOSTICS === '1';
 const SMOKE = process.env.HUSH_SMOKE === '1';
+let smokeDone = false;
+if (SMOKE) { // keep rendering even if the desktop is locked/occluded
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+}
 
 function createWindow() {
-  const webPreferences = { contextIsolation: true, sandbox: true, nodeIntegration: false };
+  const webPreferences = { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: !SMOKE };
   try { webPreferences.preload = require.resolve('@smartspectra/node-sdk/preload'); } catch (e) { console.error('[hush] preload resolve failed', e.message); }
   const win = new BrowserWindow({ width: 1280, height: 800, backgroundColor: '#000000', title: 'HUSH', autoHideMenuBar: true, webPreferences });
   if (bindSmartSpectraIpc) {
@@ -54,6 +60,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.on('console-message', (e) => {
     console.log('[renderer]', e.message);
+    if (SMOKE && e.message.includes('[smoke] RESULT')) { process.exitCode = e.message.includes('RESULT PASS') ? 0 : 1; smokeDone = true; setTimeout(() => app.exit(process.exitCode || 0), 500); }
   });
   win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: process.env.HUSH_SMOKE_LIVE === '1' ? 'smoke-live' : 'smoke' } : undefined);
   if (DIAG) win.webContents.openDevTools({ mode: 'detach' });
@@ -62,7 +69,7 @@ function createWindow() {
     if (process.env.HUSH_SHOT) {
       setTimeout(() => win.webContents.capturePage().then((img) => fs.writeFileSync(process.env.HUSH_SHOT, img.toPNG())).catch(() => {}), 9000);
     }
-    setTimeout(() => app.quit(), 14000);
+    setTimeout(() => { if (!smokeDone) { console.log('[hush] smoke: timed out without RESULT'); process.exitCode = 1; } app.exit(process.exitCode || 0); }, 60000);
   }
 }
 

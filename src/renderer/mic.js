@@ -30,7 +30,7 @@ export class MicMonitor {
   }
 
   // Simulation key V / smoke test: pretend a loud sound happened.
-  injectSpike(loudness = 0.9) { this.fakeT = 0.12; this.fakeDb = this.analyzer.floorDb + 20 + loudness * 20; }
+  injectSpike(loudness = 0.9) { if (this.analyzer.slow == null) this.analyzer.slow = 0; this.fakeT = 0.12; this.fakeDb = this.analyzer.floorDb + 20 + loudness * 20; }
 
   readDb() {
     if (this.fakeT > 0) return this.fakeDb;
@@ -47,7 +47,7 @@ export class MicMonitor {
   update(dt) {
     this.fakeT = Math.max(0, this.fakeT - dt);
     const db = this.readDb();
-    if (db == null) { this.last = { over: 0, level: 0, noise: 0, event: null, db: -100 }; this.analyzer.reset(); return this.last; }
+    if (db == null) { this.last = { over: 0, level: 0, noise: 0, event: null, db: -100 }; return this.last; }
     this.last = { ...this.analyzer.push(db, dt), db };
     return this.last;
   }

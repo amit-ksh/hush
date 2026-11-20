@@ -18,6 +18,8 @@ export class Hud {
     $('micFill').style.width = `${frac * 100}%`; $('micThr').style.left = `${thr * 100}%`;
   }
   heardCue(t) { const e = $('heard'); e.textContent = t; e.style.opacity = 1; clearTimeout(this._ht); this._ht = setTimeout(() => { e.style.opacity = 0; }, 1400); }
+  flash() { const e = $('flashFx'); e.style.transition = 'none'; e.style.opacity = 0.85; requestAnimationFrame(() => { e.style.transition = 'opacity .5s'; e.style.opacity = 0; }); }
+  pulseScreen() { const e = $('pulseFx'); e.classList.remove('go'); void e.offsetWidth; e.classList.add('go'); }
   prompt(t) { $('prompt').textContent = t || ''; }
   hint(t) { $('hint').textContent = t || ''; }
   msg(t, secs = 2.5) { const m = $('msg'); m.textContent = t; m.style.opacity = 1; this.msgTimer = secs; }

@@ -44,7 +44,7 @@ export class Biometrics {
   async startLive(apiKey) {
     this.error = null;
     if (!this.hasSdk) throw new Error('SmartSpectra bridge unavailable (preload not loaded)');
-    if (!apiKey) throw new Error('No PRESAGE_API_KEY found in .env');
+    if (!apiKey) throw new Error('No API key set');
     if (this.sdk) await this.stopLive();
     // FACE_LANDMARKS (11) is skipped: the game only needs blinking, talking and expressions.
     const requested = [...breathingMetrics, ...cardioMetrics, ...faceMetrics.filter((m) => m !== 11)];
@@ -56,8 +56,9 @@ export class Biometrics {
     });
     this.sdk.on('metrics', (buf) => { try { this._ingest(decodeMetrics(buf)); } catch (e) { console.error('[hush] decode failed', e); } });
     this.sdk.on('error', (code, message, retryable) => {
-      const auth = code === SmartSpectraErrorCode.kAuthenticationFailed || code === SmartSpectraErrorCode.kCreditExhausted;
-      this.error = { code, message, retryable, authOrCredit: auth };
+      const kind = code === SmartSpectraErrorCode.kAuthenticationFailed ? 'auth' : code === SmartSpectraErrorCode.kCreditExhausted ? 'credit' : 'other';
+      const auth = kind !== 'other';
+      this.error = { code, kind, message: auth ? '' : message, retryable, authOrCredit: auth };
       console.error('[hush] sdk error', code, message);
       if (this.onError) this.onError(this.error);
     });
@@ -65,7 +66,8 @@ export class Biometrics {
     try {
       await this.sdk.start();
     } catch (e) {
-      const err = { code: e.code ?? 'JS', message: e.message, authOrCredit: false };
+      const isAuth = /auth/i.test(String(e.code) + ' ' + e.message);
+      const err = { code: e.code ?? 'JS', kind: isAuth ? 'auth' : 'other', message: isAuth ? '' : e.message, authOrCredit: isAuth };
       this.error = err; this.mode = 'sim'; this.state.source = 'sim';
       try { this.sdk.destroy(); } catch { /* ignore */ }
       this.sdk = null;

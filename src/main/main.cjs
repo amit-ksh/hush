@@ -5,7 +5,8 @@
 
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, session, ipcMain } = require('electron');
+const { app, BrowserWindow, session, ipcMain, safeStorage, shell } = require('electron');
+const keys = require('./keylogic.cjs');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -29,7 +30,25 @@ function loadEnv() {
   return env;
 }
 const env = loadEnv();
-const API_KEY = process.env.PRESAGE_API_KEY || env.PRESAGE_API_KEY || '';
+const ENV_KEY = process.env.PRESAGE_API_KEY || env.PRESAGE_API_KEY || '';
+
+// API key sources, in precedence order: entered this session, saved (encrypted with the OS keystore via
+// safeStorage, only if the player opted in), then PRESAGE_API_KEY from .env. The key is never logged.
+let sessionKey = '';
+let savedKey = '';
+let encAvail = false;   // set at startup from safeStorage.isAsyncEncryptionAvailable()
+const keyFile = () => path.join(app.getPath('userData'), 'hush-key.bin');
+async function loadSavedKey() {
+  savedKey = '';
+  try {
+    if (!encAvail || !fs.existsSync(keyFile())) return;
+    savedKey = (await safeStorage.decryptStringAsync(fs.readFileSync(keyFile()))).result;
+  } catch { savedKey = ''; }
+}
+function keyStatus() {
+  const r = keys.resolveKey({ session: sessionKey, saved: savedKey, env: ENV_KEY });
+  return { source: r.source, hint: keys.maskKey(r.key), text: keys.statusLine(r.source), encryptionAvailable: encAvail, hasSaved: !!savedKey };
+}
 
 let bindSmartSpectraIpc = null;
 let sdkLoadError = null;
@@ -43,6 +62,7 @@ try {
 const DIAG = process.env.SMARTSPECTRA_DIAGNOSTICS === '1';
 const SMOKE = process.env.HUSH_SMOKE === '1';
 let smokeDone = false;
+let smokeLeak = false;
 if (SMOKE) { // keep rendering even if the desktop is locked/occluded
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -59,8 +79,9 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.on('console-message', (e) => {
+    if (SMOKE && sessionKey && e.message.includes(sessionKey)) { smokeLeak = true; console.log('[renderer] <message suppressed: contained the key>'); return; }
     console.log('[renderer]', e.message);
-    if (SMOKE && e.message.includes('[smoke] RESULT')) { process.exitCode = e.message.includes('RESULT PASS') ? 0 : 1; smokeDone = true; setTimeout(() => app.exit(process.exitCode || 0), 500); }
+    if (SMOKE && e.message.includes('[smoke] RESULT')) { process.exitCode = e.message.includes('RESULT PASS') && !smokeLeak ? 0 : 1; console.log('[hush] smoke: raw key leaked into console output = ' + smokeLeak); smokeDone = true; setTimeout(() => app.exit(process.exitCode || 0), 500); }
   });
   win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: process.env.HUSH_SMOKE_LIVE === '1' ? 'smoke-live' : 'smoke' } : undefined);
   if (DIAG) win.webContents.openDevTools({ mode: 'detach' });
@@ -73,11 +94,38 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try { encAvail = await safeStorage.isAsyncEncryptionAvailable(); } catch { encAvail = false; }
   // Our tiny preload exposes the API key + SDK status to the renderer.
   try { session.defaultSession.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'hush-preload.cjs') }); }
   catch (e) { console.error('[hush] registerPreloadScript failed', e.message); }
-  ipcMain.handle('hush:config', () => ({ apiKey: API_KEY, sdkError: sdkLoadError }));
+  await loadSavedKey();
+  if (SMOKE) { // verify the encrypted-storage primitives work here (dummy value, nothing written)
+    try { console.log('[hush] smoke: safeStorage available=' + encAvail + ' roundtrip=' + (encAvail ? (await safeStorage.decryptStringAsync(await safeStorage.encryptStringAsync('dummy-value-123'))).result === 'dummy-value-123' : 'n/a')); } catch (e) { console.log('[hush] smoke: safeStorage roundtrip failed'); }
+  }
+  ipcMain.handle('hush:config', () => ({ sdkError: sdkLoadError }));
+  ipcMain.handle('hush:key-status', () => keyStatus());
+  // The full key only travels main -> renderer SDK (as in the SmartSpectra sample); it is never logged.
+  ipcMain.handle('hush:key-for-sdk', () => keys.resolveKey({ session: sessionKey, saved: savedKey, env: ENV_KEY }).key);
+  ipcMain.handle('hush:key-set', async (_e, key, remember) => {
+    const v = keys.validateKey(key);
+    if (!v.ok) return { ok: false, message: v.reason, ...keyStatus() };
+    sessionKey = v.key;
+    let message = '';
+    if (remember) {
+      if (encAvail) {
+        try { fs.writeFileSync(keyFile(), await safeStorage.encryptStringAsync(v.key)); savedKey = v.key; message = 'Key saved (encrypted) on this device.'; }
+        catch { message = 'Could not save the key; it will be used for this session only.'; }
+      } else message = 'Secure storage is not available on this system, so the key is used for this session only.';
+    }
+    return { ok: true, message, ...keyStatus() };
+  });
+  ipcMain.handle('hush:key-clear', () => {
+    sessionKey = ''; savedKey = '';
+    try { fs.rmSync(keyFile(), { force: true }); } catch { /* ignore */ }
+    return { ok: true, message: 'Saved key cleared.', ...keyStatus() };
+  });
+  ipcMain.handle('hush:open-register', () => { if (keys.isAllowedExternal(keys.REGISTER_URL)) shell.openExternal(keys.REGISTER_URL); });
 
   // Camera only, local page only.
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {

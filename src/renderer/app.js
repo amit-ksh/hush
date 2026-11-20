@@ -10,6 +10,7 @@ import { GameAudio } from './audio.js';
 import { Hud } from './hud.js';
 import { lineOfSight } from './pathfind.js';
 import { MicMonitor } from './mic.js';
+import { mountKeySection, refreshKeyStatus, keyStatus, onKeyChange } from './keyui.js';
 import { ScareDirector, performScare, SCARE_LABELS, SCARE_IDS as SCARE_IDS_ALL } from './scares.js';
 
 const $ = (id) => document.getElementById(id);
@@ -33,7 +34,9 @@ const noise = new NoiseModel();
 const mic = new MicMonitor();
 let micWanted = false;
 
-let cfg = { apiKey: '', sdkError: null };
+let cfg = { sdkError: null };
+const hasKey = () => keyStatus().source !== 'none';
+const sdkKey = () => window.hushKeys.getSdkKey();
 let phase = 'consent';          // consent | calib | ready | play | paused | caught | end
 let game = null;
 let consentedCamera = false;
@@ -46,13 +49,19 @@ function showScreen(id) {
 }
 
 bio.onStream = (s) => hud.setStream(s);
+function errorText(err) {
+  if (err.kind === 'auth') return 'Key rejected by Presage. Check the key and try again.';
+  if (err.kind === 'credit') return 'This key has no credits left.';
+  return 'SmartSpectra error: ' + err.message;
+}
 bio.onError = (err) => {
-  const text = err.authOrCredit
-    ? 'The SmartSpectra service rejected the key or the credits are used up. Switching to simulation mode.'
-    : `SmartSpectra error: ${err.message}`;
-  if (err.authOrCredit) { switchToSim(); }
-  if (phase === 'play') hud.msg(text, 6);
-  else $('consentErr').textContent = text;
+  const text = errorText(err);
+  if (!err.authOrCredit) { if (phase === 'play') hud.msg(text, 6); else $('consentErr').textContent = text; return; }
+  if (phase === 'play') { switchToSim(); hud.msg(text + ' Switched to simulation.', 6); return; }
+  // Key problem before play: stay on the consent screen (key section visible) and offer simulation.
+  switchToSim(); phase = 'consent'; showScreen('consent'); resumeLive = false;
+  $('consentErr').textContent = text + ' You can play in simulation mode instead.';
+  $('btnLive').disabled = !hasKey();
 };
 
 function switchToSim() {
@@ -65,18 +74,23 @@ function switchToSim() {
 // ---------------------------------------------------------------- consent
 async function init() {
   try { cfg = await window.hushConfig.get(); } catch (e) { console.error('[hush] config unavailable', e); }
-  const canLive = bio.hasSdk && !!cfg.apiKey && !cfg.sdkError;
-  $('btnLive').disabled = !canLive;
-  $('keyHint').textContent = canLive ? '' :
-    !cfg.apiKey ? 'Live mode needs PRESAGE_API_KEY in a .env file (see README). Simulation mode works without it.'
-      : (cfg.sdkError ? `SmartSpectra SDK unavailable: ${cfg.sdkError}` : 'SmartSpectra bridge not available.');
-  console.log(`[hush] ready; sdkBridge=${bio.hasSdk} keyPresent=${!!cfg.apiKey}`);
+  mountKeySection($('keyBoxConsent')); mountKeySection($('keyBoxPause'));
+  onKeyChange(updateLiveButton);
+  if (SMOKE) await smokeKeyTest();
+  await refreshKeyStatus();
+  console.log(`[hush] ready; sdkBridge=${bio.hasSdk} key=${keyStatus().source}`);
   if (SMOKE) { startSim(); }
   if (SMOKE_LIVE) {
-    try { await bio.startLive(cfg.apiKey); console.log('[smoke-live] startLive resolved, status=' + bio.status); }
+    try { await bio.startLive(await sdkKey()); console.log('[smoke-live] startLive resolved, status=' + bio.status); }
     catch (e) { console.log('[smoke-live] startLive rejected: ' + (e.code ?? '') + ' ' + e.message); }
     setTimeout(() => console.log('[smoke-live] status=' + bio.status + ' err=' + JSON.stringify(bio.error)), 5000);
   }
+}
+
+function updateLiveButton() {
+  const can = bio.hasSdk && hasKey() && !cfg.sdkError;
+  $('btnLive').disabled = !can;
+  $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key above (or PRESAGE_API_KEY in .env) for live mode. Simulation mode works without one.');
 }
 
 async function setupMic() {
@@ -89,11 +103,12 @@ $('btnLive').onclick = async () => {
   audio.init(); consentedCamera = true; await setupMic();
   $('consentErr').textContent = ''; $('btnLive').disabled = true;
   try {
-    await bio.startLive(cfg.apiKey);
+    await bio.startLive(await sdkKey());
     hud.setMode(true);
     beginCalibration(false);
   } catch (e) {
-    $('consentErr').textContent = `Could not start live mode: ${e.message || e}. You can still play in simulation mode.`;
+    const authFail = bio.error && bio.error.kind === 'auth';
+    $('consentErr').textContent = authFail ? 'Key rejected by Presage. Check the key and try again, or play in simulation mode.' : `Could not start live mode: ${e.message || e}. You can still play in simulation mode.`;
     $('btnLive').disabled = false;
   }
 };
@@ -279,13 +294,13 @@ function endGame(win) {
   if (bio.mode === 'live') { resumeLive = true; bio.stopLive(); }
 }
 $('btnAgain').onclick = () => { canvas.requestPointerLock(); restartCameraThen(() => startGame()); };
-$('btnMenu').onclick = () => { resumeLive = false; mic.stop(); if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
+$('btnMenu').onclick = () => { resumeLive = false; mic.stop(); if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); updateLiveButton(); };
 
 async function restartCameraThen(fn) {
   if (micWanted && !mic.active) { try { await mic.start(audio.ctx); mic.analyzer.reset(); } catch { micWanted = false; } }
   if (resumeLive && bio.mode !== 'live') {
     showScreen('none'); hud.msg('Restarting camera...', 3);
-    try { await bio.startLive(cfg.apiKey); hud.setMode(true); }
+    try { await bio.startLive(await sdkKey()); hud.setMode(true); }
     catch (e) { switchToSim(); hud.msg('Camera unavailable - simulation mode', 4); }
     resumeLive = false;
   }
@@ -310,7 +325,7 @@ $('btnResume').onclick = () => {
   canvas.requestPointerLock();
   restartCameraThen(() => { showScreen('none'); phase = 'play'; hud.setMode(bio.mode === 'live'); });
 };
-$('btnQuit').onclick = () => { resumeLive = false; mic.stop(); hud.show(false); phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
+$('btnQuit').onclick = () => { resumeLive = false; mic.stop(); hud.show(false); phase = 'consent'; showScreen('consent'); updateLiveButton(); };
 
 // ---------------------------------------------------------------- input extras
 window.addEventListener('keydown', (e) => {
@@ -319,9 +334,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && phase === 'play') mic.injectSpike(0.9);
   if (e.code === 'KeyM' && phase === 'play') {
     if (bio.mode === 'live') { switchToSim(); hud.msg('Simulation mode (B: close eyes, T: whisper)', 3); }
-    else if (consentedCamera && cfg.apiKey) {
+    else if (consentedCamera && hasKey()) {
       hud.msg('Starting camera...', 2);
-      bio.startLive(cfg.apiKey).then(() => hud.setMode(true)).catch(() => hud.msg('Camera unavailable', 3));
+      sdkKey().then((k) => bio.startLive(k)).then(() => hud.setMode(true)).catch(() => hud.msg('Camera unavailable', 3));
     } else hud.msg('Live mode needs consent + key: return to the menu', 3);
   }
 });
@@ -377,6 +392,18 @@ function playTick(dt) {
   if (SMOKE) smokeStep(g, b, dt);
 }
 
+// Smoke: set a fake session key through IPC; status must show only the masked value.
+const SMOKE_FAKE_KEY = 'zz-fake-SMOKE-key-9f3a';
+async function smokeKeyTest() {
+  const r = await window.hushKeys.setKey(SMOKE_FAKE_KEY, false);
+  await refreshKeyStatus();
+  const st = keyStatus();
+  const painted = document.querySelector('.keystatus') ? document.querySelector('.keystatus').textContent : '';
+  smokeKey.ok = r.ok && st.source === 'session' && st.hint === '\u2022\u2022\u2022\u20229f3a' && painted.includes('\u2022\u2022\u2022\u20229f3a') && !painted.includes('SMOKE') && !JSON.stringify(st).includes('fake');
+  smokeKey.line = st.source + ':' + st.hint;
+}
+const smokeKey = { ok: false, line: '' };
+
 // ---------------------------------------------------------------- smoke test hook (HUSH_SMOKE=1)
 const smoke = { scares: {}, i: 0, micFired: false, hid: false, searched: false, gaveUp: false, done: false, errs: [] };
 function smokeStep(g, b, dt) {
@@ -410,10 +437,10 @@ function smokeStep(g, b, dt) {
     smoke.done = true;
     const allScares = SCARE_IDS_ALL.every((id) => smoke.scares[id]);
     const mic1 = (g.micEvents || 0) >= 1;
-    const pass = ERRS === 0 && allScares && mic1 && smoke.searched && smoke.gaveUp;
+    const pass = smokeKey.ok && ERRS === 0 && allScares && mic1 && smoke.searched && smoke.gaveUp;
     console.log('[smoke] OK frames=' + g.frames + ' state=' + creature.state + ' bpm=' + b.bpm.toFixed(0) + ' src=' + b.source);
     console.log('[smoke] RESULT ' + (pass ? 'PASS' : 'FAIL') + ' scares=' + SCARE_IDS_ALL.filter((id) => smoke.scares[id]).length + '/' + SCARE_IDS_ALL.length +
-      ' micEvents=' + (g.micEvents || 0) + ' searched=' + smoke.searched + ' gaveUp=' + smoke.gaveUp + ' consoleErrors=' + ERRS);
+      ' micEvents=' + (g.micEvents || 0) + ' searched=' + smoke.searched + ' gaveUp=' + smoke.gaveUp + ' consoleErrors=' + ERRS + ' keyStatus=' + smokeKey.line + ' keyStatusOk=' + smokeKey.ok);
   }
 }
 

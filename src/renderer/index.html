@@ -44,6 +44,11 @@
     #micBar { position:relative; height:5px; background:#1a1a1a; border:1px solid #333; margin-top:3px; }
     #micFill { height:100%; width:0; background:#8ab4f8; } #micThr { position:absolute; top:-3px; bottom:-3px; width:2px; background:#c0392b; left:45%; }
     #heard { position:absolute; left:50%; top:40%; transform:translateX(-50%); font-size:22px; letter-spacing:.2em; color:#e8a09a; opacity:0; transition:opacity .25s; text-shadow:0 0 10px #000; }
+    .keybox { text-align:left; border:1px solid #2a2824; padding:10px 12px; margin:10px 0; font-size:13px; }
+    .keybox a { color:#8ab4f8; margin-left:8px; font-size:12px; }
+    .keyrow { display:flex; gap:4px; margin:6px 0; } .keyrow input { flex:1; background:#0c0c0c; border:1px solid #444; color:var(--fg); padding:7px; }
+    .keyrow button, .keybox button { margin:0; padding:6px 12px; font-size:12px; } .keybox .rem { display:block; font-size:12px; color:#b8b1a4; }
+    .keystatus { margin-top:6px; color:var(--ok); } .keymsg { color:#f2c94c; min-height:14px; }
     #msg { position:absolute; left:50%; top:62%; transform:translateX(-50%); font-size:18px; letter-spacing:.1em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; }
     #prompt { position:absolute; left:50%; top:55%; transform:translateX(-50%); font-size:14px; color:var(--fg); letter-spacing:.1em; }
     #cross { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px; background:rgba(255,255,255,.5); border-radius:50%; }
@@ -91,6 +96,7 @@
     <h2>Camera consent</h2>
     <p style="text-align:left">In live mode HUSH uses your webcam and the Presage SmartSpectra SDK to estimate pulse, breathing, blinking, talking and facial expression from video. These are used only as <b>game signals</b>: a racing pulse makes noise in the game. HUSH is a game; it is not a medical device and makes no health claims.</p>
     <p style="text-align:left" class="fine">The camera opens only if you press the button below. HUSH itself stores, records and uploads nothing, and telemetry is disabled. Video processing is handled by the Presage SDK under Presage's privacy policy (https://api.physiology.presagetech.com/privacypolicy). Press <kbd>Esc</kbd> at any time to release the mouse and stop the camera.</p>
+    <div id="keyBoxConsent"></div>
     <label style="display:block;text-align:left;margin:10px 0;font-size:13px;color:#b8b1a4"><input type="checkbox" id="chkMic"> <b>Optional: use my microphone.</b> Loud sounds you make (a cough, a clap, speaking) will attract the creature. Only the sound <i>level</i> is measured, in memory. Audio is never recorded, stored or uploaded. Off by default; <kbd>Esc</kbd> stops it.</label>
     <div id="consentErr" class="err"></div>
     <button id="btnLive" class="primary">I agree - use my camera (live)</button>
@@ -112,6 +118,7 @@
   <div id="pause" class="screen"><div class="card">
     <h2>PAUSED</h2>
     <p id="pauseText">Camera stopped. Nothing is being measured while you are paused.</p>
+    <div id="keyBoxPause"></div>
     <button id="btnResume" class="primary">Resume</button>
     <button id="btnQuit">Quit to menu</button>
   </div></div>

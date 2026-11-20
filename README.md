@@ -17,9 +17,12 @@ pnpm start           # bundles the renderer with esbuild, then launches Electron
 
 ### Live mode (webcam + SmartSpectra)
 
-1. Get an API key from https://physiology.presagetech.com/.
-2. Copy `.env.example` to `.env` and set `PRESAGE_API_KEY=your_key`. `.env` is git-ignored; never commit it.
-3. `pnpm start`, read the consent screen, press "I agree - use my camera (live)". Calibrate for about 20 s (sit still, face the camera, breathe normally).
+1. Get an API key from https://physiology.presagetech.com/auth/register (the consent screen has a "Get a key" link).
+2. Provide the key in **one of two ways**:
+   - **In the app:** paste it into the "Presage API key" box on the consent screen (or the pause screen) and press "Use key". It is used for this session only unless you tick "Remember on this device", which stores it encrypted with your OS keystore (Electron `safeStorage`) in the app's user-data folder. If secure storage is unavailable the key stays session-only and the app says so. "Clear saved key" deletes it.
+   - **Via `.env`:** copy `.env.example` to `.env` and set `PRESAGE_API_KEY=your_key`. `.env` is git-ignored; never commit it.
+   Precedence: key entered this session, then saved key, then `.env`, then simulation only. A status line shows which one is in use, with only a masked hint (last 4 characters).
+3. `pnpm start`, read the consent screen, press "I agree - use my camera (live)". If Presage rejects the key or it has no credits, HUSH says so and you can keep playing in simulation mode. Calibrate for about 20 s (sit still, face the camera, breathe normally).
 
 ### Simulation mode (no key, no camera)
 
@@ -75,7 +78,7 @@ Every 45-120 seconds (shorter as the run goes on) a scare director picks a rando
 - The microphone is a separate opt-in checkbox (off by default). Only a level number is computed; audio is never recorded, stored or uploaded. `Esc` and the end screen stop it.
 - Telemetry is disabled (`enableTelemetry: false`).
 - The app itself stores, records and uploads nothing. Video processing is handled by the Presage SmartSpectra SDK under Presage's privacy policy: https://api.physiology.presagetech.com/privacypolicy
-- The API key stays in your local `.env`.
+- Your API key is only ever sent to Presage by the SDK. A key typed into the app is kept in memory for the session and saved to disk only if you tick "Remember on this device" (encrypted with the OS keystore, never in browser storage); "Clear saved key" removes it. The UI and logs show at most the last 4 characters.
 - No health claims: values are shown as game signals, not diagnoses.
 
 ## Tests

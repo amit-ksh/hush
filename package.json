@@ -1,7 +1,7 @@
 {
   "name": "hush",
   "version": "0.1.0",
-  "description": "HUSH - a first-person horror escape game that listens to your pulse (Presage SmartSpectra SDK Challenge entry)",
+  "description": "HUSH - a first-person horror escape game that listens to your pulse",
   "main": "src/main/main.cjs",
   "type": "module",
   "license": "MIT",

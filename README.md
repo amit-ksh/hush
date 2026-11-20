@@ -1,8 +1,6 @@
 # HUSH
 
 **A first-person horror escape game that listens to your heartbeat.**
-Entry for the DEV Presage SmartSpectra SDK Challenge (`#presagechallenge`).
-
 You wake up in a procedurally generated house. A creature hunts you by sound, not sight. Find the key, unlock the exit and get out, but the creature "hears" what your webcam sees: a racing pulse, fast breathing, a gasp of fear, a whispered word. Stay calm, close your eyes for a moment, hide, or run and be heard.
 
 HUSH is a game. The SmartSpectra signals are used as **game signals only**. HUSH is not a medical device and makes no health claims.
@@ -35,7 +33,9 @@ Press "Play in simulation mode" on the first screen, or press `M` in game to swi
 | Shift | sprint (loud) |
 | C | crouch (quiet, slow) |
 | F | flashlight (visible from afar) |
-| E | take key, hide in wardrobe or bed, open the exit |
+| E | take key, hide (look at a spot up close), open the exit |
+| Space | hold your breath while hiding (cuts breathing noise, but after ~6 s the strain makes noise spike) |
+| V | simulation: fake a loud sound (mic spike) |
 | M | switch live / simulation |
 | Esc | release mouse, pause, **stop the camera** |
 
@@ -57,9 +57,22 @@ The creature has four states: WANDER, INVESTIGATE (walks to where it heard you),
 
 The heartbeat audio follows your live BPM. The small trace in the HUD is drawn from the current BPM (its shape is illustrative, not a raw signal).
 
+## Hiding
+
+Wardrobes, beds (crawl under), lockers, closets, curtains and big crates are hiding spots (every room but the start room has at least one). Walk up to one and look at it: it gets a faint blue rim and an "E: hide" prompt. Inside, the view is locked with a small peek range. The creature cannot see you, but if it saw you go in, or your noise rises above 70, it walks over and **searches** the spot for a few seconds, and catches you if your noise is still above 70. Stay calm and quiet and it gives up and leaves.
+
+## Microphone (optional)
+
+Tick the microphone box on the consent screen to let real sounds attract the creature. HUSH only measures the sound **level** (an analyser node, converted to dBFS in memory): audio is never recorded, stored or uploaded. During calibration it learns your room's noise floor; only sound above that floor counts. Sustained noise adds to the noise meter, and sudden loud sounds (a cough, a clap, speaking up) create a sound event at your position that the creature investigates, or hunts if it is loud. A small mic bar with a threshold line shows the level. `Esc` stops the microphone like the camera. The SDK's own `talking` signal stays a separate signal.
+
+## Scares
+
+Every 45-120 seconds (shorter as the run goes on) a scare director picks a random scare: lights out, a door slam, a whisper, a figure in a doorway, a crash in another room (a real sound event), a hand on the wall, a doubled heartbeat, a music box. It never fires during a chase and never repeats the same scare twice in a row. They are made to make you jump: your real reaction feeds the noise meter. The end screen shows a pulse graph and your biggest scare as a game stat.
+
 ## Privacy and consent
 
 - The camera only opens after you press the opt-in button on the consent screen. `Esc` stops it again; the camera is also stopped on the end screen.
+- The microphone is a separate opt-in checkbox (off by default). Only a level number is computed; audio is never recorded, stored or uploaded. `Esc` and the end screen stop it.
 - Telemetry is disabled (`enableTelemetry: false`).
 - The app itself stores, records and uploads nothing. Video processing is handled by the Presage SmartSpectra SDK under Presage's privacy policy: https://api.physiology.presagetech.com/privacypolicy
 - The API key stays in your local `.env`.

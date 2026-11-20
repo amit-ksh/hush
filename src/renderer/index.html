@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; media-src 'self' blob:; connect-src 'self'">
+  <title>HUSH</title>
+  <style>
+    :root { --fg:#d9d2c5; --dim:#7d776c; --red:#c0392b; --bg:#050506; --ok:#6fcf97; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:"Segoe UI",system-ui,sans-serif; overflow:hidden; user-select:none; }
+    canvas#gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+    .screen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(2,2,4,.94); z-index:20; text-align:center; }
+    .screen.show { display:flex; }
+    .card { max-width:640px; padding:32px 36px; }
+    h1 { font-size:64px; letter-spacing:.35em; margin:0 0 8px; font-weight:300; }
+    h2 { font-weight:300; letter-spacing:.2em; margin:0 0 16px; }
+    p { line-height:1.55; color:#b8b1a4; margin:10px 0; }
+    small, .fine { color:var(--dim); font-size:12px; line-height:1.5; display:block; }
+    button { background:transparent; color:var(--fg); border:1px solid #6a655b; padding:12px 22px; margin:8px 6px; font-size:15px; letter-spacing:.08em; cursor:pointer; }
+    button:hover:not(:disabled) { background:#1b1a18; border-color:var(--fg); }
+    button:disabled { opacity:.35; cursor:not-allowed; }
+    button.primary { border-color:var(--red); }
+    .err { color:#e8a09a; }
+    .bar { width:360px; height:6px; background:#222; margin:18px auto; }
+    .bar > i { display:block; height:100%; width:0; background:var(--fg); }
+    #hud { position:fixed; inset:0; pointer-events:none; display:none; z-index:10; }
+    #hud.show { display:block; }
+    #pip { position:absolute; left:14px; top:14px; width:200px; background:rgba(0,0,0,.55); border:1px solid #333; padding:6px; font-size:12px; }
+    #pip video { width:100%; height:112px; object-fit:cover; background:#111; transform:scaleX(-1); display:block; }
+    #pip .simbox { height:112px; display:none; align-items:center; justify-content:center; background:#1a1210; color:#e07a5f; letter-spacing:.2em; font-size:14px; }
+    #wave { width:100%; height:38px; display:block; margin-top:4px; background:#0a0a0a; }
+    #vitals { display:flex; justify-content:space-between; margin-top:4px; font-variant-numeric:tabular-nums; }
+    #vitals b { font-size:20px; font-weight:600; }
+    #hint { color:#f2c94c; min-height:16px; margin-top:2px; }
+    #noiseWrap { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); width:340px; text-align:center; font-size:11px; letter-spacing:.2em; color:var(--dim); }
+    #noiseBar { height:8px; background:#1a1a1a; border:1px solid #333; margin-top:4px; }
+    #noiseBar > i { display:block; height:100%; width:0; background:linear-gradient(90deg,#6fcf97,#f2c94c,#c0392b); }
+    #topright { position:absolute; right:14px; top:14px; text-align:right; font-size:12px; color:var(--dim); line-height:1.6; }
+    #mode { display:inline-block; padding:2px 8px; border:1px solid; letter-spacing:.15em; }
+    #mode.live { color:var(--ok); } #mode.sim { color:#e07a5f; }
+    #keyIcon { font-size:22px; filter:grayscale(1) brightness(.4); } #keyIcon.have { filter:none; }
+    #msg { position:absolute; left:50%; top:62%; transform:translateX(-50%); font-size:18px; letter-spacing:.1em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; }
+    #prompt { position:absolute; left:50%; top:55%; transform:translateX(-50%); font-size:14px; color:var(--fg); letter-spacing:.1em; }
+    #cross { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px; background:rgba(255,255,255,.5); border-radius:50%; }
+    #dim { position:fixed; inset:0; background:#000; opacity:0; transition:opacity .35s; z-index:9; pointer-events:none; }
+    #hunt { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .5s; box-shadow:inset 0 0 160px 40px rgba(192,0,0,.65); }
+    #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:radial-gradient(circle,rgba(0,0,0,.2),#000 85%); }
+    #scare { position:fixed; inset:0; z-index:30; display:none; background:#000; align-items:center; justify-content:center; }
+    #scare.show { display:flex; animation:shake .08s infinite; }
+    #scare .face { width:46vmin; height:70vmin; background:radial-gradient(ellipse at 50% 40%,#111 0,#000 70%); position:relative; border-radius:40%; }
+    #scare .eye { position:absolute; top:28%; width:9vmin; height:3vmin; background:#ff2a10; border-radius:50%; box-shadow:0 0 5vmin 2vmin #f00; }
+    #scare .mouth { position:absolute; left:25%; right:25%; top:58%; height:14vmin; background:#300; border-radius:0 0 50% 50%; box-shadow:0 0 6vmin #a00 inset; }
+    @keyframes shake { 0%{transform:translate(0,0)} 25%{transform:translate(6px,-4px)} 50%{transform:translate(-5px,5px)} 75%{transform:translate(4px,3px)} 100%{transform:translate(0,0)} }
+    table.stats { margin:12px auto; border-collapse:collapse; } table.stats td { padding:4px 18px; border-bottom:1px solid #222; text-align:left; }
+    kbd { border:1px solid #555; padding:1px 6px; border-radius:3px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="dim"></div><div id="hunt"></div><div id="hideov"></div>
+
+  <div id="hud">
+    <div id="pip">
+      <video id="cam" autoplay playsinline muted></video>
+      <div class="simbox" id="simbox">SIMULATED</div>
+      <canvas id="wave" width="190" height="38"></canvas>
+      <div id="vitals"><span>&#9829; <b id="bpm">--</b> bpm</span><span><b id="br">--</b> br/min</span></div>
+      <div id="hint"></div>
+    </div>
+    <div id="topright"><span id="mode" class="sim">SIMULATED</span><br>seed <span id="seed">-</span><br>room: <span id="room">-</span><br><span id="keyIcon">&#128477;</span> <span id="keytxt">key: not found</span></div>
+    <div id="cross"></div>
+    <div id="prompt"></div>
+    <div id="msg"></div>
+    <div id="noiseWrap">NOISE - what it can hear<div id="noiseBar"><i id="noiseFill"></i></div></div>
+  </div>
+
+  <div id="consent" class="screen show"><div class="card">
+    <h1>HUSH</h1>
+    <p>Something is in the house. It cannot see well. It listens.<br>Find the key, reach the exit, and keep your heart quiet.</p>
+    <h2>Camera consent</h2>
+    <p style="text-align:left">In live mode HUSH uses your webcam and the Presage SmartSpectra SDK to estimate pulse, breathing, blinking, talking and facial expression from video. These are used only as <b>game signals</b>: a racing pulse makes noise in the game. HUSH is a game; it is not a medical device and makes no health claims.</p>
+    <p style="text-align:left" class="fine">The camera opens only if you press the button below. HUSH itself stores, records and uploads nothing, and telemetry is disabled. Video processing is handled by the Presage SDK under Presage's privacy policy (https://api.physiology.presagetech.com/privacypolicy). Press <kbd>Esc</kbd> at any time to release the mouse and stop the camera.</p>
+    <div id="consentErr" class="err"></div>
+    <button id="btnLive" class="primary">I agree - use my camera (live)</button>
+    <button id="btnSim">Play in simulation mode (no camera)</button>
+    <small id="keyHint"></small>
+  </div></div>
+
+  <div id="calib" class="screen"><div class="card">
+    <h2>CALIBRATION</h2>
+    <p id="calibText">Sit still and breathe normally. HUSH is learning your resting rhythm.</p>
+    <div class="bar"><i id="calibBar"></i></div>
+    <p>pulse <b id="cBpm">--</b> bpm &nbsp; breathing <b id="cBr">--</b> /min</p>
+    <p id="cHint" style="color:#f2c94c;min-height:20px"></p>
+    <video id="calibCam" autoplay playsinline muted style="width:220px;height:124px;object-fit:cover;transform:scaleX(-1);background:#111"></video><br>
+    <button id="btnCalibSkip">Skip (use defaults)</button>
+    <button id="btnCalibSim">Switch to simulation</button>
+  </div></div>
+
+  <div id="pause" class="screen"><div class="card">
+    <h2>PAUSED</h2>
+    <p id="pauseText">Camera stopped. Nothing is being measured while you are paused.</p>
+    <button id="btnResume" class="primary">Resume</button>
+    <button id="btnQuit">Quit to menu</button>
+  </div></div>
+
+  <div id="end" class="screen"><div class="card">
+    <h1 id="endTitle" style="font-size:44px"></h1>
+    <p id="endText"></p>
+    <table class="stats" id="endStats"></table>
+    <button id="btnAgain" class="primary">Play again (new house)</button>
+    <button id="btnMenu">Main menu</button>
+  </div></div>
+
+  <div id="controls" class="screen"><div class="card">
+    <h2>CONTROLS</h2>
+    <p><kbd>WASD</kbd> move &nbsp; <kbd>Mouse</kbd> look &nbsp; <kbd>Shift</kbd> sprint (loud) &nbsp; <kbd>C</kbd> crouch (quiet)<br><kbd>F</kbd> flashlight &nbsp; <kbd>E</kbd> pick up / hide / open &nbsp; <kbd>M</kbd> live/sim &nbsp; <kbd>Esc</kbd> pause + stop camera</p>
+    <p>Close your eyes for a second or more: the screen dims and your noise falls. Do not whisper.<br><small>Simulation mode: hold <kbd>B</kbd> to close eyes, hold <kbd>T</kbd> to whisper.</small></p>
+    <button id="btnGo" class="primary">Click to enter the house</button>
+  </div></div>
+
+  <div id="scare"><div class="face"><div class="eye" style="left:22%"></div><div class="eye" style="right:22%"></div><div class="mouth"></div></div></div>
+
+  <script src="../../dist/renderer.bundle.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "dark_planks",
+    "name": "Dark Planks",
+    "authors": [
+      "Rob Tuytel"
+    ],
+    "license": "CC0",
+    "url": "https://polyhaven.com/a/dark_planks"
+  },
+  {
+    "id": "decrepit_wallpaper",
+    "name": "Decrepit Wallpaper",
+    "authors": [
+      "Rob Tuytel"
+    ],
+    "license": "CC0",
+    "url": "https://polyhaven.com/a/decrepit_wallpaper"
+  },
+  {
+    "id": "rough_pine_door",
+    "name": "Rough Pine Door",
+    "authors": [
+      "Dimitrios Savva"
+    ],
+    "license": "CC0",
+    "url": "https://polyhaven.com/a/rough_pine_door"
+  },
+  {
+    "id": "grey_plaster",
+    "name": "Grey Plaster",
+    "authors": [
+      "Rob Tuytel"
+    ],
+    "license": "CC0",
+    "url": "https://polyhaven.com/a/grey_plaster"
+  }
+]

@@ -165,7 +165,6 @@ hush/
   scripts/                build.mjs (esbuild), fetch-assets.mjs
   test/                   levelgen, mic, scares, keystore tests
   assets/textures/        CC0 Poly Haven textures + SOURCES.json
-  docs/SUBMISSION.md      project write-up draft
 ```
 
 ## Credits

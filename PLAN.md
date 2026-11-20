@@ -74,7 +74,7 @@ hush/
   src/renderer/audio.js
   src/renderer/hud.js
   assets/...
-  docs/SUBMISSION.md          draft DEV post following the template sections
+  submission/post.md          draft DEV post (kept local, git-ignored)
 ```
 
 ## Iteration 2 (requested Nov 20)
@@ -96,7 +96,7 @@ hush/
   - Continuous level adds to noise.
   - Spikes such as a cough, clap or speaking create a **sound event at the player's position**, with a radius scaled by loudness. The creature goes to INVESTIGATE at that spot, or HUNTs if loud. SDK `talking` stays as a separate signal that confirms speech.
 - HUD: a small mic level bar with the threshold line, plus an on-screen "it heard that" cue. Esc or pause stops the mic tracks, as with the camera. Simulation key `V` fakes a loud noise.
-- Electron: make sure the permission handler allows `media` (audio) for file://, and the CSP doesn't block it. Update the consent text, README and SUBMISSION.md "Consent and Data Handling" for the mic.
+- Electron: make sure the permission handler allows `media` (audio) for file://, and the CSP doesn't block it. Update the consent text, README and submission/post.md "Consent and Data Handling" for the mic.
 
 ### C. Scare director: random jump scares
 - A `scares.js` module. A director picks a random scare every 45–120 s. It has a cooldown, never fires during a chase or catch, and never repeats the same scare twice in a row. Scare intensity rises as the run goes on.
@@ -113,7 +113,7 @@ hush/
 - The jump-scare frequency setting is honoured if one is added later. For now, a `scares` toggle in settings or code constant.
 
 ### D. Remove hackathon or contest mentions from the app
-- Remove "Challenge entry" wording from `package.json` description and the `README.md` header line, and anything user-facing in-game. Keep `docs/SUBMISSION.md` and PLAN.md as they are; they're not shipped in the app.
+- Remove "Challenge entry" wording from `package.json` description and the `README.md` header line, and anything user-facing in-game. Keep `submission/post.md` and PLAN.md as they are; they're not shipped in the app.
 
 ### E. Bring your own API key
 - An in-app key field on the consent and settings screens, with show/hide, "remember on this device" (off by default) and "clear saved key".
@@ -127,4 +127,4 @@ hush/
 3. Creature AI and noise model, simulation mode.
 4. Biometrics wired into noise, calibration, consent, HUD.
 5. Assets, audio, polish, win and lose screens.
-6. README, CREDITS, SUBMISSION.md draft.
+6. README, CREDITS, submission/post.md draft.

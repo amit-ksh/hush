@@ -77,7 +77,7 @@ node node_modules/electron/install.js
 
 **Provide a Presage API key (optional, for live mode), either way:**
 
-1. **In the app:** paste it into the "Presage API key" box on the consent screen (or the pause screen) and press "Use key". It is kept for the session only unless you tick "Remember on this device", which saves it encrypted with your OS keystore (Electron `safeStorage`). "Clear saved key" removes it.
+1. **In the app:** paste it into the "Use your own API key" section of the consent screen (or the pause screen) and press "Use". It is kept for the session only unless you tick "Remember (encrypted)", which saves it encrypted with your OS keystore (Electron `safeStorage`). "Clear saved key" removes it.
 2. **With `.env`:** copy `.env.example` to `.env` and set `PRESAGE_API_KEY=your_key`. `.env` is git-ignored; never commit it.
 
 Precedence: key entered this session, then saved key, then `.env`, then simulation only. A status line shows which is in use (with a masked hint of the last 4 characters).
@@ -90,13 +90,13 @@ pnpm start
 
 On first launch you will see:
 
-1. **Consent screen:** choose "I agree - use my camera (live)" or "Play in simulation mode". There is a separate, unchecked-by-default box to opt in to the microphone. Nothing is opened before you choose.
+1. **Consent screen:** choose "Play with camera" or "Play without camera" (simulation). There is a separate, unchecked-by-default box to opt in to the microphone. Nothing is opened before you choose.
 2. **Calibration (~20 s in live mode):** sit still, face the camera and breathe normally. The game records your resting pulse, breathing and HRV (and the room's noise floor, if the mic is on). Simulation mode calibrates in a few seconds.
 3. **Controls screen**, then click to enter the house.
 
 ## Simulation mode
 
-No camera or API key needed. Press "Play in simulation mode" on the first screen, or press `M` in game. Synthetic pulse, breathing, HRV and fear react to what you do (sprinting, the creature getting close, being hunted, scares), and the HUD shows **SIMULATED**. Use `B` to close your eyes, `T` to whisper and `V` to make a loud noise.
+No camera or API key needed. Press "Play without camera" on the first screen, or press `M` in game. Synthetic pulse, breathing, HRV and fear react to what you do (sprinting, the creature getting close, being hunted, scares), and the HUD shows **SIMULATED**. Use `B` to close your eyes, `T` to whisper and `V` to make a loud noise.
 
 ## Scripts
 

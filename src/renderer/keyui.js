@@ -15,7 +15,11 @@ export async function refreshKeyStatus() {
   return status;
 }
 
+const SRC = { session: 'session', saved: 'saved', env: '.env' };
+function chipText() { return status.source === 'none' ? 'No key' : `Key: ${SRC[status.source]} ${status.hint}`; }
+
 function paint(b) {
+  for (const c of document.querySelectorAll('.keychip')) c.textContent = chipText();
   b.status.textContent = status.text + (status.hint ? `  (${status.hint})` : '');
   b.clear.disabled = !(status.hasSaved || status.source === 'session');
   b.remember.disabled = !status.encryptionAvailable;
@@ -25,12 +29,14 @@ function paint(b) {
 export function mountKeySection(container) {
   container.innerHTML = `
     <div class="keybox">
-      <b>Presage API key</b> <a href="#" class="getkey">Get a key</a>
-      <div class="keyrow"><input type="password" class="keyinput" placeholder="paste your API key" autocomplete="off" spellcheck="false">
-        <button type="button" class="showkey">Show</button><button type="button" class="usekey primary">Use key</button></div>
-      <label class="rem"><input type="checkbox" class="remember"> Remember on this device (encrypted with your OS keystore)</label>
-      <div class="keystatus"></div><div class="keymsg"></div><div class="keynote fine"></div>
-      <button type="button" class="clearkey">Clear saved key</button>
+      <div class="keyrow"><input type="password" class="keyinput" placeholder="Presage API key" autocomplete="off" spellcheck="false">
+        <button type="button" class="showkey">Show</button><button type="button" class="usekey">Use</button></div>
+      <div class="keyopts">
+        <label><input type="checkbox" class="remember"> Remember (encrypted)</label>
+        <a href="#" class="getkey">Get a key</a>
+        <button type="button" class="clearkey link">Clear saved key</button>
+      </div>
+      <div class="keystatus"></div><div class="keymsg"></div><div class="keynote"></div>
     </div>`;
   const q = (c) => container.querySelector(c);
   const b = { input: q('.keyinput'), status: q('.keystatus'), msg: q('.keymsg'), note: q('.keynote'), clear: q('.clearkey'), remember: q('.remember') };

@@ -159,18 +159,18 @@ export class World {
     this.creature = this._buildCreature();
     this.scene.add(this.creature.group);
     // a purely visual fake creature for the silhouette scare, and a slab for the door slam
-    this.fake = this._buildCreature(); this.fake.group.visible = false; this.fake.glow.intensity = 0; this.scene.add(this.fake.group);
+    this.fake = this._buildCreature(); this.fake.group.visible = false; this.fake.glow.intensity = 1.2; this.scene.add(this.fake.group);
     this.slab = new THREE.Mesh(new THREE.BoxGeometry(TILE, 2.2, 0.1), pbr('rough_pine_door', 1, 1, { roughness: 1 }));
     this.slab.visible = false; this.scene.add(this.slab);
   }
 
   _buildCreature() {
     const g = new THREE.Group();
-    const dark = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.9 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x14100f, emissive: 0x2a0a08, emissiveIntensity: 1, roughness: 0.8 });
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.32, 1.15, 0.2), dark); torso.position.y = 1.45;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), dark); head.scale.set(0.8, 1.4, 0.9); head.position.y = 2.28;
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), eyeMat); eyeL.position.set(-0.06, 2.32, 0.13);
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), eyeMat); eyeL.position.set(-0.06, 2.32, 0.13);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.06;
     const limb = (len, x, y) => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.07), dark); l.geometry.translate(0, -len / 2, 0); l.position.set(x, y, 0); return l; };
     const armL = limb(1.5, -0.28, 2.0), armR = limb(1.5, 0.28, 2.0);
@@ -189,7 +189,7 @@ export class World {
     c.armL.rotation.z = 0.1 + Math.random() * 0.08; c.armR.rotation.z = -0.1 - Math.random() * 0.08;
     c.legL.rotation.x = Math.sin(c.t * 5) * 0.5 * Math.min(1, speed); c.legR.rotation.x = -c.legL.rotation.x;
     c.group.position.y = Math.abs(Math.sin(c.t * 5)) * 0.04;
-    c.glow.intensity = hunting ? 1.6 : 0.5;
+    c.glow.intensity = hunting ? 2.4 : 1.0;
   }
 
   highlight(prop) { for (const h of this.level.hides) if (h.rim) h.rim.visible = h === prop; }

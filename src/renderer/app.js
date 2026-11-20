@@ -16,6 +16,7 @@ import { ScareDirector, performScare, SCARE_LABELS, SCARE_IDS as SCARE_IDS_ALL }
 const $ = (id) => document.getElementById(id);
 const SMOKE = location.hash === '#smoke';
 const SMOKE_LIVE = location.hash === '#smoke-live';
+const CAPTURE = location.hash === '#capture';
 let ERRS = 0;
 const _ce = console.error.bind(console);
 console.error = (...a) => { ERRS++; _ce(...a); };
@@ -80,6 +81,7 @@ async function init() {
   await refreshKeyStatus();
   console.log(`[hush] ready; sdkBridge=${bio.hasSdk} key=${keyStatus().source}`);
   if (SMOKE) { startSim(); }
+  if (CAPTURE) runCapture();
   if (SMOKE_LIVE) {
     try { await bio.startLive(await sdkKey()); console.log('[smoke-live] startLive resolved, status=' + bio.status); }
     catch (e) { console.log('[smoke-live] startLive rejected: ' + (e.code ?? '') + ' ' + e.message); }
@@ -90,7 +92,7 @@ async function init() {
 function updateLiveButton() {
   const can = bio.hasSdk && hasKey() && !cfg.sdkError;
   $('btnLive').disabled = !can;
-  $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key above (or PRESAGE_API_KEY in .env) for live mode. Simulation mode works without one.');
+  $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key below (or PRESAGE_API_KEY in .env) to use the camera.');
 }
 
 async function setupMic() {
@@ -123,9 +125,9 @@ function startSim() {
 function beginCalibration(sim) {
   phase = 'calib'; showScreen('calib');
   calib = { sim, t: 0, valid: 0, bpm: 0, br: 0, brN: 0, rm: 0, rmN: 0, n: 0 };
-  $('calibText').textContent = sim ? 'Simulation mode: calibrating a synthetic resting rhythm (a few seconds).'
-    : 'Sit still, look at the camera and breathe normally for about 20 seconds. HUSH is learning your resting rhythm for the game.';
+  $('calibText').textContent = sim ? 'Simulated calibration...' : 'Sit still and breathe normally.';
   $('btnCalibSim').style.display = sim ? 'none' : '';
+  $('calibCam').style.display = sim ? 'none' : '';
   if (SMOKE) { calib.sim = true; }
 }
 function calibTick(dt) {
@@ -164,14 +166,14 @@ $('btnGo').onclick = () => { canvas.requestPointerLock(); startGame(); };
 // ---------------------------------------------------------------- game
 function startGame() {
   if (game) { game.world.dispose(); game.player.dispose(); }
-  const seed = SMOKE ? 4242 : 1 + Math.floor(Math.random() * 999999);
+  const seed = (SMOKE || CAPTURE) ? 4242 : 1 + Math.floor(Math.random() * 999999);
   const level = generateLevel(seed);
   const world = new World(level, renderer);
   const player = new Player(level, world.camera);
   const creature = new Creature(level, mulberry32(seed ^ 0x9e3779b9));
   game = { director: new ScareDirector({ rnd: mulberry32(seed ^ 0x51ed) }), scareLog: [], bpmHist: [], bpmSlow: 0, histAcc: 0, level, world, player, creature, hasKey: false, sawEnter: false, unlocked: false, t: 0, peakBpm: 0, seed, frames: 0, creatureDist: 99 };
   noise.value = 0; noise.impulse = 0;
-  player.locked = !!document.pointerLockElement || SMOKE;
+  player.locked = !!document.pointerLockElement || SMOKE || CAPTURE;
   if (SMOKE) { player.keys.add('KeyW'); player.yaw = 1.2; }
 
   player.onFlashToggle = (on) => { world.flash.visible = on; };
@@ -263,6 +265,11 @@ function caught() {
   setTimeout(() => { $('scare').classList.remove('show'); endGame(false); }, 1500);
 }
 
+function bestScareText(g) {
+  const best = g.scareLog.filter((e) => e.bpm0 > 0).sort((a, b) => (b.peak - b.bpm0) - (a.peak - a.bpm0))[0];
+  return best && best.peak - best.bpm0 >= 1 ? SCARE_LABELS[best.id] + ' +' + Math.round(best.peak - best.bpm0) : (g.scareLog.length ? SCARE_LABELS[g.scareLog[0].id] : 'none');
+}
+
 function drawEndGraph(g) {
   const c = $('endGraph').getContext('2d'), W = 420, H = 80; c.clearRect(0, 0, W, H);
   const pts = g.bpmHist; const vals = pts.filter((v) => v);
@@ -279,15 +286,11 @@ function endGame(win) {
   phase = 'end'; hud.show(false);
   $('dim').style.opacity = 0; $('hunt').style.opacity = 0; $('hideov').style.opacity = 0;
   document.exitPointerLock();
-  $('endTitle').textContent = win ? 'YOU ESCAPED' : 'IT FOUND YOU';
-  $('endText').textContent = win ? 'The door shuts behind you. You can hear your own heartbeat again.' : 'It followed the sound.';
+  $('endTitle').textContent = win ? 'ESCAPED' : 'CAUGHT';
   const t = Math.round(g.t);
-  const rows = [['Time', `${Math.floor(t / 60)}m ${t % 60}s`], ['Peak pulse (game signal)', g.peakBpm > 0 ? `${Math.round(g.peakBpm)} bpm` : 'n/a'],
-    ['Times hunted', g.creature.timesHunted], ['Seed', g.seed], ['Signal source', bio.mode === 'live' ? 'live camera' : 'simulated']];
-  $('endStats').innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+  const rows = [['Time', `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`], ['Peak BPM', g.peakBpm > 0 ? Math.round(g.peakBpm) : 'n/a'], ['Biggest scare', bestScareText(g)]];
+  $('endStats').innerHTML = rows.map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join('');
   drawEndGraph(g);
-  const best = g.scareLog.filter((e) => e.bpm0 > 0).sort((a, b) => (b.peak - b.bpm0) - (a.peak - a.bpm0))[0];
-  $('endScare').textContent = best && best.peak - best.bpm0 >= 1 ? 'Biggest scare: ' + SCARE_LABELS[best.id] + ', +' + Math.round(best.peak - best.bpm0) + ' BPM (game signal)' : (g.scareLog.length ? 'Scares this run: ' + g.scareLog.length : '');
   showScreen('end');
   mic.stop();
   // privacy: camera off whenever we are not playing
@@ -318,7 +321,7 @@ function pauseGame() {
   const wasLive = bio.mode === 'live';
   mic.stop();
   if (wasLive) { resumeLive = true; bio.stopLive(); }
-  $('pauseText').textContent = wasLive ? 'Camera stopped. Nothing is measured while paused. Resume restarts the camera.' : 'Paused.';
+  $('pauseText').textContent = wasLive ? 'Camera and mic are off. Resume restarts them.' : (micWanted ? 'Mic is off.' : 'Nothing is being measured.');
   showScreen('pause');
 }
 $('btnResume').onclick = () => {
@@ -359,7 +362,7 @@ function playTick(dt) {
   }
   g.histAcc += dt; if (g.histAcc >= 1) { g.histAcc = 0; g.bpmHist.push(b.bpm > 0 && b.bpm < 220 ? b.bpm : null); }
   for (const e of g.scareLog) if (g.t < e.until && b.bpm > 0 && b.bpm < 220) e.peak = Math.max(e.peak, b.bpm);
-  if (!SMOKE) {
+  if (!SMOKE && !CAPTURE) {
     const chase = [S.HUNT, S.SEARCH, S.CATCH].includes(creature.state);
     const sid = g.director.update(dt, { chase });
     if (sid) fireScare(sid);
@@ -368,7 +371,7 @@ function playTick(dt) {
   const m = mic.update(dt);
   if (m.event) soundEvent(m.event.loudness, m.event.over);
   noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: m.noise });
-  if (!SMOKE || g.t > 9) creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
+  if ((!SMOKE || g.t > 9) && !CAPTURE) creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
   if (player.gasp) { noise.addImpulse(30); audio.zap(); hud.msg('You gasp for air.', 2); }
   world.highlight(player.hidden ? null : hideTarget());
   world.setCreature(creature.x * T, creature.y * T, creature.heading, creature.speed, dt, creature.state === S.HUNT);
@@ -403,6 +406,49 @@ async function smokeKeyTest() {
   smokeKey.line = st.source + ':' + st.hint;
 }
 const smokeKey = { ok: false, line: '' };
+
+// ---------------------------------------------------------------- screenshot mode (HUSH_CAPTURE=<dir>, simulation only)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const shot = async (name) => {
+  if (game) console.log('[hush] cap-debug ' + name + ' player=' + game.player.tileX.toFixed(2) + ',' + game.player.tileY.toFixed(2) + ' yaw=' + game.player.yaw.toFixed(2) + ' pitch=' + game.player.pitch.toFixed(2) + ' creature=' + game.creature.x.toFixed(1) + ',' + game.creature.y.toFixed(1));
+  console.log('[capture] ' + name); await sleep(900);
+};
+function bestView(g) { // yaw with the longest open line of sight from the player
+  const { player, level } = g; let best = { d: 0, yaw: 0 };
+  for (let k = 0; k < 32; k++) {
+    const yaw = (k / 32) * Math.PI * 2; let d = 0;
+    while (d < 14) { const x = Math.round(player.tileX - Math.sin(yaw) * d), y = Math.round(player.tileY - Math.cos(yaw) * d); if (level.solid[y][x]) break; d += 0.25; }
+    if (d > best.d) best = { d, yaw };
+  }
+  return best;
+}
+async function runCapture() {
+  await sleep(700); await shot('01-consent');
+  $('btnSim').click();
+  await sleep(1800); await shot('02-calibration');
+  while (phase !== 'ready') await sleep(100);
+  startGame(); const g = game, { player, creature, world, level } = g;
+  const view = bestView(g); player.yaw = view.yaw; player.pitch = -0.05;
+  await sleep(2500); await shot('03-gameplay');
+  // creature standing in the beam a few tiles away
+  const dist = Math.max(2, Math.min(2.8, view.d - 2));
+  creature.x = player.tileX - Math.sin(view.yaw) * dist; creature.y = player.tileY - Math.cos(view.yaw) * dist;
+  creature.heading = Math.atan2(player.tileX - creature.x, player.tileY - creature.y); creature.state = S.HUNT;
+  await sleep(1200); await shot('04-creature');
+  creature.x = 1; creature.y = 1;
+  const spot = level.hides.find((h) => h.room === level.spawn.room) || level.hides[0];
+  player.hideIn(spot); world.ambient.intensity = 3.2; await sleep(1500); await shot('05-hidden'); world.ambient.intensity = 1.0;
+  player.leaveHiding(); player.yaw = view.yaw;
+  fireScare('whisper'); await sleep(2500); fireScare('heartbeat'); await sleep(3500);
+  const v2 = bestView(g); player.yaw = v2.yaw;
+  fireScare('silhouette') || (player.yaw += 1, fireScare('silhouette'));
+  world.fakeT = 3; await sleep(500); await shot('06-scare');
+  await sleep(11000);
+  endGame(true); await sleep(600); await shot('07-end');
+  showScreen('pause'); await sleep(300); await shot('08-pause');
+  phase = 'consent'; showScreen('consent'); $('keyDetails').open = true; $('privacy').open = true; await sleep(300); await shot('09-consent-details');
+  console.log('[capture] done');
+}
 
 // ---------------------------------------------------------------- smoke test hook (HUSH_SMOKE=1)
 const smoke = { scares: {}, i: 0, micFired: false, hid: false, searched: false, gaveUp: false, done: false, errs: [] };

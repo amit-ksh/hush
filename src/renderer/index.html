@@ -6,67 +6,121 @@
         content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; media-src 'self' blob:; connect-src 'self'">
   <title>HUSH</title>
   <style>
-    :root { --fg:#d9d2c5; --dim:#7d776c; --red:#c0392b; --bg:#050506; --ok:#6fcf97; }
+    :root {
+      --fg:#d8d3c8; --dim:#8a857b; --faint:#5f5b53; --accent:#a8423a; --ok:#7bb98f;
+      --panel:rgba(10,10,12,.74); --line:rgba(255,255,255,.12);
+      --s1:6px; --s2:12px; --s3:20px; --s4:32px;
+      --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    }
     * { box-sizing:border-box; }
-    html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:"Segoe UI",system-ui,sans-serif; overflow:hidden; user-select:none; }
+    html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:var(--font); font-size:14px; overflow:hidden; user-select:none; }
     canvas#gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
-    .screen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(2,2,4,.94); z-index:20; text-align:center; }
+
+    /* ---------- screens ---------- */
+    .screen { overflow-y:auto; position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(3,3,5,.9); z-index:20; text-align:center; }
     .screen.show { display:flex; }
-    .card { max-width:640px; padding:32px 36px; }
-    h1 { font-size:64px; letter-spacing:.35em; margin:0 0 8px; font-weight:300; }
-    h2 { font-weight:300; letter-spacing:.2em; margin:0 0 16px; }
-    p { line-height:1.55; color:#b8b1a4; margin:10px 0; }
-    small, .fine { color:var(--dim); font-size:12px; line-height:1.5; display:block; }
-    button { background:transparent; color:var(--fg); border:1px solid #6a655b; padding:12px 22px; margin:8px 6px; font-size:15px; letter-spacing:.08em; cursor:pointer; }
-    button:hover:not(:disabled) { background:#1b1a18; border-color:var(--fg); }
+    .card { margin:auto; width:min(440px,92vw); padding:var(--s3); background:var(--panel); border:1px solid var(--line); border-radius:6px; backdrop-filter:blur(6px); }
+    h1 { font-size:44px; letter-spacing:.4em; margin:0 0 var(--s1) .4em; font-weight:300; }
+    h2 { font-size:22px; letter-spacing:.2em; margin:0 0 var(--s2); font-weight:300; }
+    p { margin:var(--s2) 0; color:var(--dim); line-height:1.5; }
+    ul.pts { list-style:none; padding:0; margin:var(--s3) 0; text-align:left; color:var(--fg); }
+    ul.pts li { padding:var(--s1) 0 var(--s1) var(--s3); position:relative; }
+    ul.pts li::before { content:""; position:absolute; left:4px; top:13px; width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    .fine { font-size:12px; color:var(--faint); line-height:1.5; }
+    button { font:inherit; background:transparent; color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:10px 18px; cursor:pointer; letter-spacing:.04em; }
+    button:hover:not(:disabled) { border-color:var(--fg); background:rgba(255,255,255,.05); }
     button:disabled { opacity:.35; cursor:not-allowed; }
-    button.primary { border-color:var(--red); }
-    .err { color:#e8a09a; }
-    .bar { width:360px; height:6px; background:#222; margin:18px auto; }
-    .bar > i { display:block; height:100%; width:0; background:var(--fg); }
+    button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+    button.primary:hover:not(:disabled) { background:#b94d44; }
+    button.link, a { background:none; border:none; padding:0; color:var(--dim); text-decoration:underline; cursor:pointer; font-size:12px; letter-spacing:0; }
+    .btns { display:flex; flex-direction:column; gap:var(--s1); margin-top:var(--s2); }
+    .err { color:#e0958e; min-height:0; font-size:13px; }
+    .err:not(:empty) { margin-top:var(--s2); }
+    label.chk { display:flex; gap:var(--s1); align-items:center; justify-content:center; color:var(--dim); font-size:13px; margin:var(--s2) 0; }
+
+    details { text-align:left; margin-top:var(--s2); color:var(--dim); }
+    summary { cursor:pointer; font-size:12px; color:var(--dim); list-style:none; display:flex; gap:var(--s1); align-items:center; justify-content:center; }
+    summary::-webkit-details-marker { display:none; }
+    summary:hover { color:var(--fg); }
+    details > div.body { margin-top:var(--s1); font-size:12px; line-height:1.55; color:var(--dim); max-height:30vh; overflow:auto; padding-right:4px; }
+    details > div.body p { margin:var(--s1) 0; font-size:12px; }
+    .chip { border:1px solid var(--line); border-radius:10px; padding:1px 8px; font-size:11px; color:var(--fg); }
+
+    /* api key box */
+    .keybox { margin-top:var(--s1); text-align:left; }
+    .keybox .keyrow { display:flex; gap:var(--s1); }
+    .keybox input.keyinput { flex:1; min-width:0; background:rgba(0,0,0,.5); border:1px solid var(--line); border-radius:4px; color:var(--fg); padding:7px 8px; font:inherit; }
+    .keybox button { padding:6px 10px; font-size:12px; }
+    .keybox .keyopts { display:flex; gap:var(--s2); align-items:center; flex-wrap:wrap; margin-top:var(--s1); font-size:12px; color:var(--dim); }
+    .keybox .keyopts label { display:flex; gap:4px; align-items:center; }
+    .keybox .keystatus { font-size:11px; color:var(--faint); margin-top:var(--s1); }
+    .keybox .keymsg { font-size:12px; color:#d9b96a; }
+    .keybox .keymsg:empty, .keybox .keynote:empty { display:none; }
+
+    /* calibration */
+    .bar { height:4px; background:rgba(255,255,255,.1); border-radius:2px; margin:var(--s3) 0 var(--s2); overflow:hidden; }
+    .bar > i { display:block; height:100%; width:0; background:var(--accent); }
+    #calibCam { width:200px; height:112px; object-fit:cover; transform:scaleX(-1); background:#0b0b0b; border-radius:4px; }
+    #cHint { color:#d9b96a; font-size:13px; min-height:18px; }
+    .readout { color:var(--dim); font-variant-numeric:tabular-nums; }
+
+    /* pause */
+    .keys { display:grid; grid-template-columns:1fr 1fr; gap:4px var(--s3); text-align:left; font-size:12px; color:var(--dim); margin-top:var(--s1); }
+    .keys b { color:var(--fg); font-weight:500; display:inline-block; min-width:54px; }
+
+    /* end */
+    #end .card { width:min(520px,94vw); }
+    #endTitle { font-size:44px; letter-spacing:.3em; margin:0 0 var(--s2) .3em; font-weight:300; }
+    #endGraph { background:rgba(0,0,0,.45); border:1px solid var(--line); border-radius:4px; width:100%; height:auto; display:block; }
+    .stats { display:flex; justify-content:space-between; gap:var(--s2); margin:var(--s3) 0; }
+    .stats div { flex:1; } .stats b { display:block; font-size:22px; font-weight:300; color:var(--fg); } .stats span { font-size:12px; color:var(--dim); }
+
+    /* ---------- HUD (corners) ---------- */
     #hud { position:fixed; inset:0; pointer-events:none; display:none; z-index:10; }
     #hud.show { display:block; }
-    #pip { position:absolute; left:14px; top:14px; width:200px; background:rgba(0,0,0,.55); border:1px solid #333; padding:6px; font-size:12px; }
-    #pip video { width:100%; height:112px; object-fit:cover; background:#111; transform:scaleX(-1); display:block; }
-    #pip .simbox { height:112px; display:none; align-items:center; justify-content:center; background:#1a1210; color:#e07a5f; letter-spacing:.2em; font-size:14px; }
-    #wave { width:100%; height:38px; display:block; margin-top:4px; background:#0a0a0a; }
-    #vitals { display:flex; justify-content:space-between; margin-top:4px; font-variant-numeric:tabular-nums; }
-    #vitals b { font-size:20px; font-weight:600; }
-    #hint { color:#f2c94c; min-height:16px; margin-top:2px; }
-    #noiseWrap { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); width:340px; text-align:center; font-size:11px; letter-spacing:.2em; color:var(--dim); }
-    #noiseBar { height:8px; background:#1a1a1a; border:1px solid #333; margin-top:4px; }
-    #noiseBar > i { display:block; height:100%; width:0; background:linear-gradient(90deg,#6fcf97,#f2c94c,#c0392b); }
-    #topright { position:absolute; right:14px; top:14px; text-align:right; font-size:12px; color:var(--dim); line-height:1.6; }
-    #mode { display:inline-block; padding:2px 8px; border:1px solid; letter-spacing:.15em; }
-    #mode.live { color:var(--ok); } #mode.sim { color:#e07a5f; }
-    #keyIcon { font-size:22px; filter:grayscale(1) brightness(.4); } #keyIcon.have { filter:none; }
-    #micWrap { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); width:200px; font-size:10px; letter-spacing:.2em; color:var(--dim); text-align:center; display:none; }
-    #micBar { position:relative; height:5px; background:#1a1a1a; border:1px solid #333; margin-top:3px; }
-    #micFill { height:100%; width:0; background:#8ab4f8; } #micThr { position:absolute; top:-3px; bottom:-3px; width:2px; background:#c0392b; left:45%; }
-    #heard { position:absolute; left:50%; top:40%; transform:translateX(-50%); font-size:22px; letter-spacing:.2em; color:#e8a09a; opacity:0; transition:opacity .25s; text-shadow:0 0 10px #000; }
-    .keybox { text-align:left; border:1px solid #2a2824; padding:10px 12px; margin:10px 0; font-size:13px; }
-    .keybox a { color:#8ab4f8; margin-left:8px; font-size:12px; }
-    .keyrow { display:flex; gap:4px; margin:6px 0; } .keyrow input { flex:1; background:#0c0c0c; border:1px solid #444; color:var(--fg); padding:7px; }
-    .keyrow button, .keybox button { margin:0; padding:6px 12px; font-size:12px; } .keybox .rem { display:block; font-size:12px; color:#b8b1a4; }
-    .keystatus { margin-top:6px; color:var(--ok); } .keymsg { color:#f2c94c; min-height:14px; }
-    #msg { position:absolute; left:50%; top:62%; transform:translateX(-50%); font-size:18px; letter-spacing:.1em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; }
-    #prompt { position:absolute; left:50%; top:55%; transform:translateX(-50%); font-size:14px; color:var(--fg); letter-spacing:.1em; }
-    #cross { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px; background:rgba(255,255,255,.5); border-radius:50%; }
+    .corner { position:absolute; background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:var(--s1) var(--s2); }
+    #vitals { left:var(--s2); bottom:var(--s2); width:190px; }
+    #vitals .row { display:flex; align-items:center; justify-content:space-between; gap:var(--s1); font-variant-numeric:tabular-nums; }
+    #vitals .bpmv { font-size:20px; } #vitals .bpmv small, #vitals .brv small { font-size:11px; color:var(--dim); margin-left:2px; }
+    #vitals .brv { font-size:13px; color:var(--dim); }
+    #wave { width:100%; height:26px; display:block; margin:2px 0; }
+    .thin { height:3px; background:rgba(255,255,255,.1); border-radius:2px; position:relative; margin-top:5px; }
+    #noiseFill, #micFill { display:block; height:100%; width:0; border-radius:2px; }
+    #noiseFill { background:linear-gradient(90deg,var(--ok),#d9b96a,var(--accent)); }
+    #micWrap { display:none; } #micFill { background:#8aa7d6; }
+    #micThr { position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--accent); left:45%; }
+    #cap { position:absolute; font-size:10px; color:var(--faint); letter-spacing:.12em; }
+    #pip { right:var(--s2); top:var(--s2); width:168px; padding:var(--s1); }
+    #pip video { width:100%; height:90px; object-fit:cover; background:#101010; transform:scaleX(-1); display:block; border-radius:3px; }
+    #pip .simbox { display:none !important; height:90px; align-items:center; justify-content:center; background:#16110f; color:#c9776c; font-size:11px; letter-spacing:.2em; border-radius:3px; }
+    #mode { display:inline-block; margin-top:var(--s1); font-size:10px; letter-spacing:.18em; padding:1px 6px; border:1px solid currentColor; border-radius:3px; }
+    #mode.live { color:var(--ok); } #mode.sim { color:#c9776c; }
+    #hint { font-size:11px; color:#d9b96a; margin-top:4px; } #hint:empty { display:none; }
+    #keyIcon { position:absolute; left:var(--s2); top:var(--s2); font-size:20px; opacity:0; transition:opacity .4s; text-shadow:0 0 6px #000; }
+    #keyIcon.have { opacity:1; }
+    #keytxt { display:none; }
+    #seedTag { position:absolute; right:var(--s2); bottom:var(--s2); font-size:11px; color:var(--faint); letter-spacing:.06em; }
+    #cross { position:absolute; left:50%; top:50%; width:3px; height:3px; margin:-1px; background:rgba(255,255,255,.4); border-radius:50%; }
+    #prompt { position:absolute; left:50%; bottom:11%; transform:translateX(-50%); font-size:14px; letter-spacing:.06em; padding:6px 14px; background:var(--panel); border:1px solid var(--line); border-radius:14px; opacity:1; transition:opacity .25s; white-space:nowrap; }
+    #prompt:empty { opacity:0; }
+    #msg { position:absolute; left:50%; top:30%; transform:translateX(-50%); font-size:16px; letter-spacing:.08em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; text-align:center; }
+    #heard { position:absolute; left:50%; top:42%; transform:translateX(-50%); font-size:18px; letter-spacing:.2em; color:#e0958e; opacity:0; transition:opacity .25s; text-shadow:0 0 10px #000; }
+
+    /* ---------- fx overlays ---------- */
     #dim { position:fixed; inset:0; background:#000; opacity:0; transition:opacity .35s; z-index:9; pointer-events:none; }
-    #hunt { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .5s; box-shadow:inset 0 0 160px 40px rgba(192,0,0,.65); }
-    #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:repeating-linear-gradient(90deg,rgba(0,0,0,.92) 0 26px,rgba(0,0,0,.0) 26px 46px),radial-gradient(circle,rgba(0,0,0,.25),#000 90%); }
+    #hunt { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .5s; box-shadow:inset 0 0 160px 40px rgba(192,0,0,.6); }
+    #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:repeating-linear-gradient(90deg,rgba(0,0,0,.78) 0 26px,rgba(0,0,0,0) 26px 46px),radial-gradient(circle,rgba(0,0,0,.15),rgba(0,0,0,.85) 95%); }
     #flashFx { position:fixed; inset:0; background:#fff; opacity:0; z-index:25; pointer-events:none; }
     #pulseFx { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; box-shadow:inset 0 0 180px 60px rgba(150,0,0,.8); }
     #pulseFx.go { animation:beat .5s 8; } @keyframes beat { 0%,100%{opacity:0} 15%{opacity:1} 30%{opacity:.1} 45%{opacity:.8} }
-    #endGraph { background:#0a0a0a; border:1px solid #222; margin:6px auto; display:block; }
     #scare { position:fixed; inset:0; z-index:30; display:none; background:#000; align-items:center; justify-content:center; }
     #scare.show { display:flex; animation:shake .08s infinite; }
     #scare .face { width:46vmin; height:70vmin; background:radial-gradient(ellipse at 50% 40%,#111 0,#000 70%); position:relative; border-radius:40%; }
     #scare .eye { position:absolute; top:28%; width:9vmin; height:3vmin; background:#ff2a10; border-radius:50%; box-shadow:0 0 5vmin 2vmin #f00; }
     #scare .mouth { position:absolute; left:25%; right:25%; top:58%; height:14vmin; background:#300; border-radius:0 0 50% 50%; box-shadow:0 0 6vmin #a00 inset; }
     @keyframes shake { 0%{transform:translate(0,0)} 25%{transform:translate(6px,-4px)} 50%{transform:translate(-5px,5px)} 75%{transform:translate(4px,3px)} 100%{transform:translate(0,0)} }
-    table.stats { margin:12px auto; border-collapse:collapse; } table.stats td { padding:4px 18px; border-bottom:1px solid #222; text-align:left; }
-    kbd { border:1px solid #555; padding:1px 6px; border-radius:3px; font-size:12px; }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#3a3834; border-radius:3px; } ::-webkit-scrollbar-track { background:transparent; }
+    kbd { border:1px solid var(--line); padding:0 5px; border-radius:3px; font-size:12px; }
   </style>
 </head>
 <body>
@@ -74,69 +128,96 @@
   <div id="flashFx"></div><div id="pulseFx"></div><div id="dim"></div><div id="hunt"></div><div id="hideov"></div>
 
   <div id="hud">
-    <div id="pip">
+    <div id="keyIcon">&#128477;</div><span id="keytxt"></span>
+    <div id="pip" class="corner">
       <video id="cam" autoplay playsinline muted></video>
       <div class="simbox" id="simbox">SIMULATED</div>
-      <canvas id="wave" width="190" height="38"></canvas>
-      <div id="vitals"><span>&#9829; <b id="bpm">--</b> bpm</span><span><b id="br">--</b> br/min</span></div>
+      <span id="mode" class="sim">SIMULATED</span>
       <div id="hint"></div>
     </div>
-    <div id="topright"><span id="mode" class="sim">SIMULATED</span><br>seed <span id="seed">-</span><br>room: <span id="room">-</span><br><span id="keyIcon">&#128477;</span> <span id="keytxt">key: not found</span></div>
+    <div id="vitals" class="corner">
+      <div class="row"><span class="bpmv"><span id="bpm">--</span><small>bpm</small></span><span class="brv"><span id="br">--</span><small>br/min</small></span></div>
+      <canvas id="wave" width="190" height="38"></canvas>
+      <div class="thin"><i id="noiseFill"></i></div>
+      <div id="micWrap" class="thin"><i id="micFill"></i><span id="micThr"></span></div>
+    </div>
+    <div id="seedTag">seed <span id="seed">-</span> &middot; <span id="room">-</span></div>
     <div id="cross"></div>
     <div id="prompt"></div>
     <div id="msg"></div>
-    <div id="micWrap">MIC<div id="micBar"><div id="micFill"></div><div id="micThr"></div></div></div>
     <div id="heard"></div>
-    <div id="noiseWrap">NOISE - what it can hear<div id="noiseBar"><i id="noiseFill"></i></div></div>
   </div>
 
   <div id="consent" class="screen show"><div class="card">
     <h1>HUSH</h1>
-    <p>Something is in the house. It cannot see well. It listens.<br>Find the key, reach the exit, and keep your heart quiet.</p>
-    <h2>Camera consent</h2>
-    <p style="text-align:left">In live mode HUSH uses your webcam and the Presage SmartSpectra SDK to estimate pulse, breathing, blinking, talking and facial expression from video. These are used only as <b>game signals</b>: a racing pulse makes noise in the game. HUSH is a game; it is not a medical device and makes no health claims.</p>
-    <p style="text-align:left" class="fine">The camera opens only if you press the button below. HUSH itself stores, records and uploads nothing, and telemetry is disabled. Video processing is handled by the Presage SDK under Presage's privacy policy (https://api.physiology.presagetech.com/privacypolicy). Press <kbd>Esc</kbd> at any time to release the mouse and stop the camera.</p>
-    <div id="keyBoxConsent"></div>
-    <label style="display:block;text-align:left;margin:10px 0;font-size:13px;color:#b8b1a4"><input type="checkbox" id="chkMic"> <b>Optional: use my microphone.</b> Loud sounds you make (a cough, a clap, speaking) will attract the creature. Only the sound <i>level</i> is measured, in memory. Audio is never recorded, stored or uploaded. Off by default; <kbd>Esc</kbd> stops it.</label>
+    <p style="margin-top:0">The creature hears your heartbeat, breath and voice.</p>
+    <ul class="pts">
+      <li>Camera reads pulse and breathing. Nothing is recorded.</li>
+      <li>Mic (optional) measures loudness only.</li>
+      <li>Press Esc anytime to stop the camera and mic.</li>
+    </ul>
+    <label class="chk"><input type="checkbox" id="chkMic"> Use microphone (optional)</label>
+    <div class="btns">
+      <button id="btnLive" class="primary">Play with camera</button>
+      <button id="btnSim">Play without camera</button>
+    </div>
     <div id="consentErr" class="err"></div>
-    <button id="btnLive" class="primary">I agree - use my camera (live)</button>
-    <button id="btnSim">Play in simulation mode (no camera)</button>
-    <small id="keyHint"></small>
+    <div id="keyHint" class="fine" style="margin-top:8px"></div>
+    <details id="keyDetails"><summary>Use your own API key <span class="chip keychip">No key</span></summary><div id="keyBoxConsent"></div></details>
+    <details id="privacy"><summary>Privacy details</summary><div class="body">
+      <p><b>Camera:</b> opens only after you press "Play with camera". In that mode the Presage SmartSpectra SDK processes camera video to estimate pulse, breathing, blinking, talking and expression. HUSH uses these only as game signals.</p>
+      <p><b>Stored data:</b> the app itself stores and uploads nothing. Processing is handled by the Presage SDK under Presage's privacy policy: https://api.physiology.presagetech.com/privacypolicy. SDK telemetry is disabled.</p>
+      <p><b>Microphone:</b> optional and off by default. Only a loudness number is computed in memory; audio is never recorded, stored or uploaded.</p>
+      <p><b>API key:</b> a key you enter is kept in memory for the session. It is saved only if you tick "Remember", encrypted with your OS keystore, and can be cleared at any time. It is only sent to Presage by the SDK.</p>
+      <p><b>Stopping:</b> Esc (or the end screen) stops the camera and mic.</p>
+      <p><b>Not medical:</b> HUSH is an entertainment game. It is not a medical device and makes no health claims.</p>
+    </div></details>
   </div></div>
 
   <div id="calib" class="screen"><div class="card">
-    <h2>CALIBRATION</h2>
-    <p id="calibText">Sit still and breathe normally. HUSH is learning your resting rhythm.</p>
+    <p id="calibText" style="margin-top:0;color:var(--fg)">Sit still and breathe normally.</p>
+    <video id="calibCam" autoplay playsinline muted></video>
     <div class="bar"><i id="calibBar"></i></div>
-    <p>pulse <b id="cBpm">--</b> bpm &nbsp; breathing <b id="cBr">--</b> /min</p>
-    <p id="cHint" style="color:#f2c94c;min-height:20px"></p>
-    <video id="calibCam" autoplay playsinline muted style="width:220px;height:124px;object-fit:cover;transform:scaleX(-1);background:#111"></video><br>
-    <button id="btnCalibSkip">Skip (use defaults)</button>
-    <button id="btnCalibSim">Switch to simulation</button>
+    <div class="readout"><span id="cBpm">--</span> bpm &nbsp;&middot;&nbsp; <span id="cBr">--</span> br/min</div>
+    <div id="cHint"></div>
+    <div class="btns" style="flex-direction:row;justify-content:center">
+      <button id="btnCalibSkip">Skip</button>
+      <button id="btnCalibSim">Use simulation</button>
+    </div>
   </div></div>
 
   <div id="pause" class="screen"><div class="card">
     <h2>PAUSED</h2>
-    <p id="pauseText">Camera stopped. Nothing is being measured while you are paused.</p>
-    <div id="keyBoxPause"></div>
-    <button id="btnResume" class="primary">Resume</button>
-    <button id="btnQuit">Quit to menu</button>
+    <p id="pauseText" style="margin-top:0">Camera and mic are off.</p>
+    <div class="btns">
+      <button id="btnResume" class="primary">Resume</button>
+    </div>
+    <details open><summary>Controls</summary><div class="keys">
+      <span><b>W A S D</b> move</span><span><b>Mouse</b> look</span>
+      <span><b>Shift</b> sprint</span><span><b>C</b> crouch</span>
+      <span><b>F</b> flashlight</span><span><b>E</b> take / hide / open</span>
+      <span><b>Space</b> hold breath</span><span><b>M</b> live / sim</span>
+      <span><b>B</b> eyes (sim)</span><span><b>T</b> whisper (sim)</span>
+      <span><b>V</b> loud noise</span><span><b>Esc</b> pause</span>
+    </div></details>
+    <details><summary>API key <span class="chip keychip">No key</span></summary><div id="keyBoxPause"></div></details>
+    <div class="btns"><button id="btnQuit">Quit to menu</button></div>
   </div></div>
 
   <div id="end" class="screen"><div class="card">
-    <h1 id="endTitle" style="font-size:44px"></h1>
-    <p id="endText"></p>
-    <table class="stats" id="endStats"></table>
-    <small>Pulse during the run (game signal) with scares marked</small><canvas id="endGraph" width="420" height="80"></canvas><p id="endScare" class="fine"></p>
-    <button id="btnAgain" class="primary">Play again (new house)</button>
-    <button id="btnMenu">Main menu</button>
+    <div id="endTitle"></div>
+    <canvas id="endGraph" width="420" height="80"></canvas>
+    <div class="stats" id="endStats"></div>
+    <div class="btns">
+      <button id="btnAgain" class="primary">Play again (new house)</button>
+      <button id="btnMenu" class="link" style="align-self:center;margin-top:4px">Main menu</button>
+    </div>
   </div></div>
 
   <div id="controls" class="screen"><div class="card">
-    <h2>CONTROLS</h2>
-    <p><kbd>WASD</kbd> move &nbsp; <kbd>Mouse</kbd> look &nbsp; <kbd>Shift</kbd> sprint (loud) &nbsp; <kbd>C</kbd> crouch (quiet)<br><kbd>F</kbd> flashlight &nbsp; <kbd>E</kbd> pick up / hide / open<br><kbd>Space</kbd> hold breath while hiding (do not overdo it) &nbsp; <kbd>M</kbd> live/sim &nbsp; <kbd>V</kbd> (sim) fake a loud noise &nbsp; <kbd>Esc</kbd> pause + stop camera</p>
-    <p>Close your eyes for a second or more: the screen dims and your noise falls. Do not whisper.<br><small>Simulation mode: hold <kbd>B</kbd> to close eyes, hold <kbd>T</kbd> to whisper.</small></p>
-    <button id="btnGo" class="primary">Click to enter the house</button>
+    <h2>READY</h2>
+    <p style="margin-top:0">Esc pauses and shows the controls.</p>
+    <div class="btns"><button id="btnGo" class="primary">Click to enter</button></div>
   </div></div>
 
   <div id="scare"><div class="face"><div class="eye" style="left:22%"></div><div class="eye" style="right:22%"></div><div class="mouth"></div></div></div>

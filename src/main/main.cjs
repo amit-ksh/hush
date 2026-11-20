@@ -30,7 +30,7 @@ function loadEnv() {
   return env;
 }
 const env = loadEnv();
-const ENV_KEY = process.env.PRESAGE_API_KEY || env.PRESAGE_API_KEY || '';
+const ENV_KEY = process.env.HUSH_CAPTURE ? '' : (process.env.PRESAGE_API_KEY || env.PRESAGE_API_KEY || '');
 
 // API key sources, in precedence order: entered this session, saved (encrypted with the OS keystore via
 // safeStorage, only if the player opted in), then PRESAGE_API_KEY from .env. The key is never logged.
@@ -40,6 +40,7 @@ let encAvail = false;   // set at startup from safeStorage.isAsyncEncryptionAvai
 const keyFile = () => path.join(app.getPath('userData'), 'hush-key.bin');
 async function loadSavedKey() {
   savedKey = '';
+  if (CAPTURE) return;
   try {
     if (!encAvail || !fs.existsSync(keyFile())) return;
     savedKey = (await safeStorage.decryptStringAsync(fs.readFileSync(keyFile()))).result;
@@ -61,18 +62,21 @@ try {
 
 const DIAG = process.env.SMARTSPECTRA_DIAGNOSTICS === '1';
 const SMOKE = process.env.HUSH_SMOKE === '1';
+// HUSH_CAPTURE=<dir>: screenshot mode (simulation only, no key): the renderer announces shots, main saves them as PNGs.
+const CAPTURE_DIR = process.env.HUSH_CAPTURE || '';
+const CAPTURE = !!CAPTURE_DIR;
 let smokeDone = false;
 let smokeLeak = false;
-if (SMOKE) { // keep rendering even if the desktop is locked/occluded
+if (SMOKE || CAPTURE) { // keep rendering even if the desktop is locked/occluded
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
 }
 
 function createWindow() {
-  const webPreferences = { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: !SMOKE };
+  const webPreferences = { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: !(SMOKE || CAPTURE) };
   try { webPreferences.preload = require.resolve('@smartspectra/node-sdk/preload'); } catch (e) { console.error('[hush] preload resolve failed', e.message); }
-  const win = new BrowserWindow({ width: 1280, height: 800, backgroundColor: '#000000', title: 'HUSH', autoHideMenuBar: true, webPreferences });
+  const win = new BrowserWindow({ width: CAPTURE ? Number(process.env.HUSH_CAPTURE_W) || 1280 : 1280, height: CAPTURE ? Number(process.env.HUSH_CAPTURE_H) || 720 : 800, useContentSize: true, backgroundColor: '#000000', title: 'HUSH', autoHideMenuBar: true, webPreferences });
   if (bindSmartSpectraIpc) {
     try { bindSmartSpectraIpc(win); } catch (e) { sdkLoadError = String(e.message || e); console.error('[hush] bindSmartSpectraIpc failed', sdkLoadError); }
   }
@@ -80,11 +84,18 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.on('console-message', (e) => {
     if (SMOKE && sessionKey && e.message.includes(sessionKey)) { smokeLeak = true; console.log('[renderer] <message suppressed: contained the key>'); return; }
+    const cm = /^\[capture\] (\S+)/.exec(e.message);
+    if (CAPTURE && cm) {
+      if (cm[1] === 'done') { setTimeout(() => app.exit(0), 300); return; }
+      setTimeout(() => win.webContents.capturePage().then((img) => { fs.mkdirSync(CAPTURE_DIR, { recursive: true }); fs.writeFileSync(path.join(CAPTURE_DIR, cm[1] + '.png'), img.toPNG()); console.log('[hush] captured ' + cm[1] + ' ' + img.getSize().width + 'x' + img.getSize().height); }).catch((err) => console.log('[hush] capture failed', err.message)), 250);
+      return;
+    }
     console.log('[renderer]', e.message);
     if (SMOKE && e.message.includes('[smoke] RESULT')) { process.exitCode = e.message.includes('RESULT PASS') && !smokeLeak ? 0 : 1; console.log('[hush] smoke: raw key leaked into console output = ' + smokeLeak); smokeDone = true; setTimeout(() => app.exit(process.exitCode || 0), 500); }
   });
-  win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: process.env.HUSH_SMOKE_LIVE === '1' ? 'smoke-live' : 'smoke' } : undefined);
+  win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: process.env.HUSH_SMOKE_LIVE === '1' ? 'smoke-live' : 'smoke' } : CAPTURE ? { hash: 'capture' } : undefined);
   if (DIAG) win.webContents.openDevTools({ mode: 'detach' });
+  if (CAPTURE) setTimeout(() => { console.log('[hush] capture timed out'); app.exit(1); }, 150000);
   if (SMOKE) {
     win.webContents.on('did-finish-load', () => console.log('[hush] smoke: page loaded'));
     if (process.env.HUSH_SHOT) {

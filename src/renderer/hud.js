@@ -8,7 +8,7 @@ export class Hud {
     this.phase = 0; this.acc = 0; this.msgTimer = 0;
   }
   show(on) { $('hud').classList.toggle('show', on); }
-  setMode(live) { const m = $('mode'); m.textContent = live ? 'LIVE' : 'SIMULATED'; m.className = live ? 'live' : 'sim'; $('cam').style.display = live ? 'block' : 'none'; $('simbox').style.display = live ? 'none' : 'flex'; }
+  setMode(live) { const m = $('mode'); m.textContent = live ? 'LIVE' : 'SIMULATED'; m.className = live ? 'live' : 'sim'; $('cam').style.display = live ? 'block' : 'none'; $('simbox').style.display = 'none'; }
   setSeed(s) { $('seed').textContent = s; }
   setRoom(n) { $('room').textContent = n; }
   setKey(have) { $('keyIcon').classList.toggle('have', have); $('keytxt').textContent = have ? 'key: found' : 'key: not found'; }

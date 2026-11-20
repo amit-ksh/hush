@@ -1,0 +1,31 @@
+{
+  "name": "hush",
+  "version": "0.1.0",
+  "description": "HUSH - a first-person horror escape game that listens to your pulse (Presage SmartSpectra SDK Challenge entry)",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "pnpm run build && electron .",
+    "test": "node test/levelgen.test.mjs",
+    "assets": "node scripts/fetch-assets.mjs"
+  },
+  "dependencies": {
+    "@smartspectra/node-sdk": "^3.5.0",
+    "electron": "^45.4.1",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "koffi",
+      "protobufjs"
+    ]
+  }
+}

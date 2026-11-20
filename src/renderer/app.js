@@ -8,6 +8,7 @@ import { Player } from './player.js';
 import { Creature, S } from './creature.js';
 import { GameAudio } from './audio.js';
 import { Hud } from './hud.js';
+import { lineOfSight } from './pathfind.js';
 
 const $ = (id) => document.getElementById(id);
 const SMOKE = location.hash === '#smoke';
@@ -137,7 +138,7 @@ function startGame() {
   const world = new World(level, renderer);
   const player = new Player(level, world.camera);
   const creature = new Creature(level, mulberry32(seed ^ 0x9e3779b9));
-  game = { level, world, player, creature, hasKey: false, unlocked: false, t: 0, peakBpm: 0, seed, frames: 0, creatureDist: 99 };
+  game = { level, world, player, creature, hasKey: false, sawEnter: false, unlocked: false, t: 0, peakBpm: 0, seed, frames: 0, creatureDist: 99 };
   noise.value = 0; noise.impulse = 0;
   player.locked = !!document.pointerLockElement || SMOKE;
   if (SMOKE) { player.keys.add('KeyW'); player.yaw = 1.2; }
@@ -145,6 +146,8 @@ function startGame() {
   player.onFlashToggle = (on) => { world.flash.visible = on; };
   player.onInteract = () => interact();
   creature.onStep = () => audio.step();
+  creature.onSearchStart = () => { audio.searchSound(); hud.msg('It is searching...', 2.6); };
+  creature.onGiveUp = () => { game.sawEnter = false; hud.msg('It gave up. For now.', 2.5); };
   creature.onState = (s) => {
     if (s === S.HUNT) { audio.growl(); hud.msg('It heard you.', 2.5); }
     if (s === S.CATCH) caught();
@@ -158,7 +161,7 @@ function startGame() {
 function interact() {
   const g = game; if (!g || phase !== 'play') return;
   const { player, level, world } = g, T = level.TILE;
-  if (player.hidden) { player.leaveHiding(); audio.creak(); return; }
+  if (player.hidden) { player.leaveHiding(); g.sawEnter = false; audio.creak(); return; }
   if (!g.hasKey && Math.hypot(player.x - level.key.x * T, player.z - level.key.y * T) < 1.7) {
     g.hasKey = true; world.hideKey(); hud.setKey(true); audio.pickup(); hud.msg('You found a key.'); return;
   }
@@ -170,18 +173,35 @@ function interact() {
     }
     hud.msg('Locked. You need the key.'); return;
   }
-  let best = null, bd = 2.1;
-  for (const h of level.hides) { const d = Math.hypot(player.x - h.x * T, player.z - h.y * T); if (d < bd) { bd = d; best = h; } }
-  if (best) { player.hideIn(best); audio.creak(); hud.msg('Hiding. It can still hear your heart.', 3); }
+  const best = hideTarget();
+  if (best) {
+    const c = g.creature, cd = Math.hypot(c.x - player.tileX, c.y - player.tileY);
+    g.sawEnter = c.state !== S.WANDER ? cd < 14 && lineOfSight(level.solid, Math.round(c.x), Math.round(c.y), Math.round(player.tileX), Math.round(player.tileY))
+      : cd < 8 && lineOfSight(level.solid, Math.round(c.x), Math.round(c.y), Math.round(player.tileX), Math.round(player.tileY));
+    player.hideIn(best); audio.creak();
+    hud.msg(g.sawEnter ? 'It saw you hide...' : 'Hiding. Stay quiet. It can still hear your heart.', 3);
+  }
+}
+
+// The spot the player is close to (within ~1.2 m of its face) and looking at.
+function hideTarget() {
+  const g = game, { player, level } = g, T = level.TILE;
+  const lx = -Math.sin(player.yaw), lz = -Math.cos(player.yaw);
+  let best = null, bd = 1.95;
+  for (const h of level.hides) {
+    const dx = h.x * T - player.x, dz = h.y * T - player.z, d = Math.hypot(dx, dz);
+    if (d < bd && (dx * lx + dz * lz) / (d || 1) > 0.55) { bd = d; best = h; }
+  }
+  return best;
 }
 
 function promptText() {
   const g = game, { player, level } = g, T = level.TILE;
-  if (player.hidden) return 'E: leave hiding place';
+  if (player.hidden) return player.holdBreath ? 'holding breath...  (E: leave)' : 'E: leave   |   hold SPACE: hold breath';
   if (!g.hasKey && Math.hypot(player.x - level.key.x * T, player.z - level.key.y * T) < 1.7) return 'E: take key';
   const ex = level.exit;
   if (!g.unlocked && Math.hypot(player.x - ex.x * T, player.z - ex.y * T) < 2.6) return g.hasKey ? 'E: unlock door' : 'Locked';
-  for (const h of level.hides) if (Math.hypot(player.x - h.x * T, player.z - h.y * T) < 2.1) return 'E: hide';
+  const h = hideTarget(); if (h) return `E: hide (${h.type === 'bigcrate' ? 'crate' : h.type})`;
   return '';
 }
 
@@ -268,8 +288,10 @@ function playTick(dt) {
   const b = bio.update(dt);
   if (b.bpm > 0 && b.bpm < 220) g.peakBpm = Math.max(g.peakBpm, b.bpm);
   player.update(dt);
-  noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden });
-  creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, flashlight: player.flashlight, noise });
+  noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: 0 });
+  creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
+  if (player.gasp) { noise.addImpulse(30); audio.zap(); hud.msg('You gasp for air.', 2); }
+  world.highlight(player.hidden ? null : hideTarget());
   world.setCreature(creature.x * T, creature.y * T, creature.heading, creature.speed, dt, creature.state === S.HUNT);
   world.flash.visible = player.flashlight && !player.hidden;
   world.update(dt, performance.now() / 1000);

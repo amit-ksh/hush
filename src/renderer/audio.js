@@ -1,6 +1,6 @@
 // Procedural Web Audio (no third-party audio assets). Heartbeat follows the live BPM.
 export class GameAudio {
-  constructor() { this.ctx = null; this.master = null; this.nextBeat = 0; this.beatVol = 0.3; this.enabled = true; }
+  constructor() { this.ctx = null; this.master = null; this.nextBeat = 0; this.beatVol = 0.3; this.enabled = true; this.beatMul = 1; this.beatBoost = 0; }
 
   init() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -47,10 +47,10 @@ export class GameAudio {
     const t = this.ctx.currentTime;
     if (this.nextBeat < t - 1) this.nextBeat = t;
     if (t + 0.1 >= this.nextBeat) {
-      const vol = 0.18 + noise * 0.006;
+      const vol = 0.18 + noise * 0.006 + this.beatBoost;
       this._tone(62, this.nextBeat, 0.16, vol);
       this._tone(50, this.nextBeat + 0.17, 0.2, vol * 0.8);
-      this.nextBeat += 60 / bpm;
+      this.nextBeat += 60 / (bpm * this.beatMul);
     }
   }
   step() { if (this.ctx) this._noise(this.ctx.currentTime, 0.12, 0.9, 'lowpass', 260, 90, this.panner); }
@@ -70,4 +70,41 @@ export class GameAudio {
     for (const f of [220, 233, 311, 466]) this._tone(f * 2, t, 1.0, 0.25, 'square');
   }
   win() { if (!this.ctx) return; const t = this.ctx.currentTime; [392, 494, 587, 784].forEach((f, i) => this._tone(f, t + i * 0.14, 0.7, 0.14, 'triangle')); }
+
+  // ---- scare / event sounds (all procedural) ----
+  _pannerAt(x, z) {
+    const p = this.ctx.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 2; p.rolloffFactor = 1.1;
+    if (p.positionX) { p.positionX.value = x; p.positionY.value = 1.2; p.positionZ.value = z; }
+    p.connect(this.master); return p;
+  }
+  searchSound() {
+    if (!this.ctx) return; const t = this.ctx.currentTime;
+    for (let i = 0; i < 5; i++) this._noise(t + i * 0.5, 0.35, 0.5, 'bandpass', 900 + Math.random() * 600, 300, this.panner);
+    this._tone(70, t, 2.4, 0.2, 'sawtooth', this.panner);
+  }
+  zap() { if (this.ctx) { const t = this.ctx.currentTime; this._noise(t, 0.25, 0.7, 'highpass', 3000, 800); this._tone(120, t, 0.3, 0.3, 'square'); } }
+  slam(x, z) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, d = this._pannerAt(x, z);
+    this._noise(t, 0.35, 1.2, 'lowpass', 900, 60, d); this._tone(90, t, 0.4, 0.8, 'sine', d);
+  }
+  crash(x, z) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, d = this._pannerAt(x, z);
+    this._noise(t, 0.9, 1.3, 'bandpass', 2500, 400, d);
+    for (let i = 0; i < 6; i++) this._noise(t + 0.1 + i * 0.07, 0.2, 0.6, 'highpass', 4000 - i * 400, 1200, d);
+    this._tone(70, t, 0.5, 0.8, 'sine', d);
+  }
+  thump() { if (!this.ctx) return; const t = this.ctx.currentTime; this._tone(60, t, 0.5, 1.0); this._noise(t, 0.3, 0.9, 'lowpass', 500, 80); }
+  whisper(side) {
+    if (!this.ctx) return; const t = this.ctx.currentTime;
+    const pan = this.ctx.createStereoPanner(); pan.pan.value = side; pan.connect(this.master);
+    // breathy, syllable-like bursts that sound a bit like a name
+    [0, 0.45, 0.8, 1.35, 1.75].forEach((o, i) => this._noise(t + o, 0.32 + (i % 2) * 0.12, 0.7, 'bandpass', 1800 + i * 350, 900 + i * 150, pan));
+  }
+  doubleHeart(secs = 4) { this.beatMul = 2; this.beatBoost = 0.35; setTimeout(() => { this.beatMul = 1; this.beatBoost = 0; }, secs * 1000); }
+  musicBox(x, z) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, d = this._pannerAt(x, z);
+    const ws = this.ctx.createWaveShaper(); const curve = new Float32Array(256); for (let i = 0; i < 256; i++) { const v = i / 128 - 1; curve[i] = Math.tanh(v * 4); } ws.curve = curve; ws.connect(d);
+    const notes = [659, 587, 370, 415, 554, 494, 294, 330, 494, 440, 277, 330, 440];
+    notes.forEach((f, i) => { const st = t + i * 0.32 - i * i * 0.004; this._tone(f * (1 - i * 0.012), st, 0.5, 0.18, 'triangle', ws); });
+  }
 }

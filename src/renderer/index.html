@@ -45,7 +45,7 @@
     #cross { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px; background:rgba(255,255,255,.5); border-radius:50%; }
     #dim { position:fixed; inset:0; background:#000; opacity:0; transition:opacity .35s; z-index:9; pointer-events:none; }
     #hunt { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .5s; box-shadow:inset 0 0 160px 40px rgba(192,0,0,.65); }
-    #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:radial-gradient(circle,rgba(0,0,0,.2),#000 85%); }
+    #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:repeating-linear-gradient(90deg,rgba(0,0,0,.92) 0 26px,rgba(0,0,0,.0) 26px 46px),radial-gradient(circle,rgba(0,0,0,.25),#000 90%); }
     #scare { position:fixed; inset:0; z-index:30; display:none; background:#000; align-items:center; justify-content:center; }
     #scare.show { display:flex; animation:shake .08s infinite; }
     #scare .face { width:46vmin; height:70vmin; background:radial-gradient(ellipse at 50% 40%,#111 0,#000 70%); position:relative; border-radius:40%; }
@@ -115,7 +115,7 @@
 
   <div id="controls" class="screen"><div class="card">
     <h2>CONTROLS</h2>
-    <p><kbd>WASD</kbd> move &nbsp; <kbd>Mouse</kbd> look &nbsp; <kbd>Shift</kbd> sprint (loud) &nbsp; <kbd>C</kbd> crouch (quiet)<br><kbd>F</kbd> flashlight &nbsp; <kbd>E</kbd> pick up / hide / open &nbsp; <kbd>M</kbd> live/sim &nbsp; <kbd>Esc</kbd> pause + stop camera</p>
+    <p><kbd>WASD</kbd> move &nbsp; <kbd>Mouse</kbd> look &nbsp; <kbd>Shift</kbd> sprint (loud) &nbsp; <kbd>C</kbd> crouch (quiet)<br><kbd>F</kbd> flashlight &nbsp; <kbd>E</kbd> pick up / hide / open<br><kbd>Space</kbd> hold breath while hiding (do not overdo it) &nbsp; <kbd>M</kbd> live/sim &nbsp; <kbd>Esc</kbd> pause + stop camera</p>
     <p>Close your eyes for a second or more: the screen dims and your noise falls. Do not whisper.<br><small>Simulation mode: hold <kbd>B</kbd> to close eyes, hold <kbd>T</kbd> to whisper.</small></p>
     <button id="btnGo" class="primary">Click to enter the house</button>
   </div></div>

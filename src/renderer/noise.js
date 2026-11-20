@@ -5,8 +5,10 @@ export class NoiseModel {
     this.baseline = { bpm: 68, br: 14, rmssd: 55 };
     this.impulse = 0;       // short bursts (fear spikes, talking)
     this._fearPrev = 0;
-    this.parts = { heart: 0, breath: 0, hrv: 0, move: 0, light: 0, burst: 0 };
+    this.parts = { heart: 0, breath: 0, hrv: 0, move: 0, light: 0, burst: 0, mic: 0 };
   }
+
+  addImpulse(v) { this.impulse = Math.max(this.impulse, Math.min(70, this.impulse + v)); }
 
   setBaseline(b) { Object.assign(this.baseline, b); }
 
@@ -16,6 +18,7 @@ export class NoiseModel {
     const parts = this.parts;
     parts.heart = bio.bpm > 0 ? Math.min(45, Math.max(0, bio.bpm - (b.bpm + 5)) * 4) : 0;
     parts.breath = bio.br > 0 ? Math.min(12, Math.max(0, bio.br - (b.br + 3)) * 2.5) : 0;
+    parts.mic = Math.min(25, p.mic || 0);
     parts.hrv = bio.rmssd > 0 && b.rmssd > 0 ? Math.min(6, Math.max(0, 1 - bio.rmssd / b.rmssd) * 10) : 0;
 
     // Fear / surprise: burst on a rising edge above 40 confidence.
@@ -23,12 +26,15 @@ export class NoiseModel {
     this._fearPrev = bio.fear;
     if (bio.talking) this.impulse = Math.max(this.impulse, 45);
     this.impulse = Math.max(0, this.impulse - dt * 12);
-    parts.burst = this.impulse;
+    // Holding your breath removes breathing noise, but after ~6 s the strain makes noise spike.
+    if (p.holdBreath) parts.breath = 0;
+    const strain = p.holdSecs > 6 ? Math.min(40, (p.holdSecs - 6) * 14) : 0;
+    parts.burst = this.impulse + strain;
 
     parts.move = p.sprinting ? 30 : p.moving ? (p.crouching ? 4 : 12) : 0;
     parts.light = p.flashlight ? 8 : 0;
 
-    let target = parts.heart + parts.breath + parts.hrv + parts.move + parts.light + parts.burst;
+    let target = parts.heart + parts.breath + parts.hrv + parts.move + parts.light + parts.burst + parts.mic;
     if (p.hidden) target *= 0.6;
     if (bio.eyesClosed) target *= 0.35;       // calm-down mechanic
     target = Math.min(100, target);

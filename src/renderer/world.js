@@ -103,17 +103,30 @@ export class World {
     const wood = new THREE.MeshStandardMaterial({ color: 0x3b2616, roughness: 0.85 });
     const cloth = new THREE.MeshStandardMaterial({ color: 0x4a2a2a, roughness: 1 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6, metalness: 0.4 });
+    const slat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const closetMat = new THREE.MeshStandardMaterial({ color: 0x2d2a24, roughness: 0.9 });
+    const curtainMat = new THREE.MeshStandardMaterial({ color: 0x5a1c1c, roughness: 1 });
     const box = (w, h, d, mat, y) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.y = y; return b; };
     for (const p of level.props) {
       const g = new THREE.Group();
       switch (p.type) {
         case 'wardrobe': g.add(box(1.2, 2.2, 0.8, wood, 1.1)); g.add(box(0.02, 1.9, 0.02, metal, 1.1)); break;
+        case 'closet': g.add(box(1.3, 2.4, 0.7, closetMat, 1.2)); g.add(box(0.02, 2.0, 0.02, metal, 1.2)); break;
+        case 'locker': g.add(box(0.7, 2.0, 0.6, metal, 1.0)); for (let i = 0; i < 4; i++) { const sl = box(0.4, 0.03, 0.02, slat, 1.5 + i * 0.1); sl.position.z = 0.31; g.add(sl); } break;
+        case 'curtain': { const c = box(1.3, 2.4, 0.12, curtainMat, 1.2); c.position.z = 0.1; g.add(c); break; }
+        case 'bigcrate': g.add(box(1.15, 1.2, 1.15, wood, 0.6)); g.add(box(1.2, 0.08, 1.2, metal, 1.2)); break;
         case 'bed': g.add(box(1.4, 0.45, 1.5, wood, 0.22)); g.add(box(1.3, 0.2, 1.4, cloth, 0.55)); break;
         case 'table': g.add(box(1.1, 0.07, 1.1, wood, 0.8)); [[-.5, -.5], [.5, -.5], [-.5, .5], [.5, .5]].forEach(([a, b]) => { const l = box(0.08, 0.8, 0.08, wood, 0.4); l.position.x = a; l.position.z = b; g.add(l); }); break;
         case 'shelf': g.add(box(1.3, 1.9, 0.4, wood, 0.95)); break;
         case 'sofa': g.add(box(1.4, 0.5, 0.9, cloth, 0.25)); g.add(box(1.4, 0.6, 0.2, cloth, 0.7)); break;
         case 'counter': g.add(box(1.4, 0.95, 0.7, metal, 0.47)); break;
         default: g.add(box(0.9, 0.7, 0.9, wood, 0.35)); break;
+      }
+      if (p.hide) { // faint rim shown when the player is close and looking at the spot
+        const rim = new THREE.Group();
+        const rimMat = new THREE.MeshBasicMaterial({ color: 0x7fb7ff, side: THREE.BackSide, transparent: true, opacity: 0.35 });
+        for (const ch of g.children) { const r = new THREE.Mesh(ch.geometry, rimMat); r.position.copy(ch.position); r.scale.setScalar(1.06); rim.add(r); }
+        rim.visible = false; g.add(rim); p.rim = rim;
       }
       g.position.set(p.x * TILE, 0, p.y * TILE);
       // orient so the "back" faces the wall (+z is front)
@@ -172,6 +185,8 @@ export class World {
     c.group.position.y = Math.abs(Math.sin(c.t * 5)) * 0.04;
     c.glow.intensity = hunting ? 1.6 : 0.5;
   }
+
+  highlight(prop) { for (const h of this.level.hides) if (h.rim) h.rim.visible = h === prop; }
 
   hideKey() { this.key.visible = false; this.keyLight.visible = false; }
 

@@ -1,7 +1,7 @@
 // Creature AI on the tile grid. States: WANDER -> INVESTIGATE -> HUNT -> CATCH.
 import { astar, lineOfSight } from './pathfind.js';
 
-export const S = { WANDER: 'WANDER', INVESTIGATE: 'INVESTIGATE', HUNT: 'HUNT', CATCH: 'CATCH' };
+export const S = { WANDER: 'WANDER', INVESTIGATE: 'INVESTIGATE', HUNT: 'HUNT', SEARCH: 'SEARCH', CATCH: 'CATCH' };
 
 export class Creature {
   constructor(level, rnd) {
@@ -17,7 +17,8 @@ export class Creature {
     this.stepAcc = 0;
     this.timesHunted = 0;
     this.lastKnown = null;
-    this.onState = null; this.onStep = null;
+    this.onState = null; this.onStep = null; this.onSearchStart = null; this.onGiveUp = null;
+    this.giveUp = 0; this.searchT = 0; this.searching = false; this.spot = null; this.lastSound = null;
   }
 
   setState(s) {
@@ -48,10 +49,30 @@ export class Creature {
     return { x: Math.round(px), y: Math.round(py) };
   }
 
+  // A sound event in tile units: { x, y, radius, loud }. Quiet ones make it investigate, loud ones make it hunt.
+  hearSound(ev) {
+    if (this.state === S.CATCH || this.state === S.SEARCH) return false;
+    if (Math.hypot(ev.x - this.x, ev.y - this.y) > ev.radius) return false;
+    const L = this.level;
+    let t = { x: Math.round(ev.x), y: Math.round(ev.y) };
+    if (t.x < 0 || t.y < 0 || t.x >= L.W || t.y >= L.H || L.solid[t.y][t.x]) t = this.fuzzy(ev.x, ev.y);
+    this.lastSound = t;
+    if (ev.loud) { this.lastKnown = t; this.loseTimer = 0; this.goTo(t.x, t.y); this.repath = 0.35; this.setState(S.HUNT); return true; }
+    if (this.state !== S.HUNT && this.goTo(t.x, t.y)) { this.wait = 0; this.setState(S.INVESTIGATE); return true; }
+    return false;
+  }
+
+  startSearch(prop) {
+    this.spot = prop; this.searchT = 0; this.searching = false;
+    this.goTo(prop.x + prop.fx, prop.y + prop.fy);
+    this.setState(S.SEARCH);
+  }
+
   // ctx: { px, py (tiles), hidden, hiddenProp, flashlight, noise (NoiseModel) }
   update(dt, ctx) {
     if (this.state === S.CATCH) return;
     const L = this.level;
+    this.giveUp = Math.max(0, this.giveUp - dt);
     const dx = ctx.px - this.x, dy = ctx.py - this.y, dist = Math.hypot(dx, dy);
     const los = lineOfSight(L.solid, Math.round(this.x), Math.round(this.y), Math.round(ctx.px), Math.round(ctx.py));
     const sees = !ctx.hidden && los && dist < 14 && (ctx.flashlight || dist < 4.5);
@@ -88,15 +109,31 @@ export class Creature {
       default: break;
     }
 
-    // A hiding player is safe from sight but not from a racing pulse.
-    if (ctx.hidden && dist < 2.2 && N >= 70) {
-      this.hideHear += dt;
-      if (this.hideHear > 1.5) { this.setState(S.CATCH); return; }
-    } else this.hideHear = Math.max(0, this.hideHear - dt);
-    if (!ctx.hidden && dist < 0.9 && this.state !== S.WANDER) { this.setState(S.CATCH); return; }
+    // A hidden player cannot be seen, but a pounding pulse (noise > 70) or having been seen entering
+    // sends the creature to search the spot.
+    if (ctx.hidden && ctx.hiddenProp && this.state !== S.SEARCH && this.giveUp <= 0 && (ctx.sawEnter || (N > 70 && dist < radius + 3))) {
+      this.startSearch(ctx.hiddenProp);
+    }
+    if (this.state === S.SEARCH) {
+      const p = this.spot, fx = p.x + p.fx, fy = p.y + p.fy;
+      if (!ctx.hidden) { if (dist < 1.8) { this.setState(S.CATCH); return; } this.lastKnown = { x: Math.round(ctx.px), y: Math.round(ctx.py) }; this.searching = false; this.setState(S.HUNT); }
+      else if (Math.hypot(fx - this.x, fy - this.y) < 0.35) {
+        if (!this.searching) { this.searching = true; this.path = []; if (this.onSearchStart) this.onSearchStart(); }
+        this.heading = Math.atan2(-p.fx, -p.fy); this.speed = 0;
+        this.searchT += dt;
+        if (this.searchT >= 2.6) {
+          this.searching = false;
+          if (N > 70) { this.setState(S.CATCH); return; }
+          this.giveUp = 10; this.spot = null; if (this.onGiveUp) this.onGiveUp();
+          const t = this.randomRoomTarget(); this.goTo(t.x, t.y); this.setState(S.WANDER);
+        }
+        return;
+      } else if (!this.path.length) this.goTo(fx, fy);
+    }
+    if (!ctx.hidden && dist < 0.9 && this.state !== S.WANDER && this.state !== S.SEARCH) { this.setState(S.CATCH); return; }
 
     // move along the path
-    const sp = this.state === S.HUNT ? 2.1 : this.state === S.INVESTIGATE ? 1.4 : 0.95;
+    const sp = this.state === S.HUNT ? 2.1 : this.state === S.SEARCH ? 1.8 : this.state === S.INVESTIGATE ? 1.4 : 0.95;
     this.speed = 0;
     if (this.path.length) {
       const [tx, ty] = this.path[0];

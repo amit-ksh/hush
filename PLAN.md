@@ -77,6 +77,44 @@ hush/
   docs/SUBMISSION.md          draft DEV post following the template sections
 ```
 
+## Iteration 2 (requested Nov 20)
+
+### A. Hiding spots as a real mechanic
+- Spot types: wardrobe, bed (crawl under), locker, closet, curtain and big crate. Generate 2–3 per room on average, with at least 1 in every room except the spawn room. Corridors get an occasional locker.
+- Readable in the world. Show an "[E] Hide" prompt when you're within 1.2 m and looking at a spot. Give spots a subtle rim or glow on approach.
+- Hidden view: the camera locks inside, with a slatted or dark overlay and a limited peek (small mouse-look range). Press E to exit.
+- Rules:
+  - The creature can't see a hidden player.
+  - If it saw you enter, or your noise is above 70 while hidden, it walks to the spot and **searches** it: a 2–3 s tense search animation and sound, then a catch if noise is still above the threshold. Otherwise it gives up and leaves.
+  - The real win condition while hidden is calming your pulse and keeping quiet. Hold Space for "hold breath", which cuts breathing noise but makes noise spike after 6 s.
+- Update levelgen and its tests: every hiding spot is reachable and not blocking a doorway.
+
+### B. Microphone control: real sound attracts the creature
+- Ask for the microphone on the consent screen as a **separate opt-in checkbox**, off by default and explained clearly. Use getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}). Analyse levels only with an AnalyserNode (RMS → dBFS). **Never record, store or upload audio.**
+- Calibration measures the room noise floor during the existing 20 s. Mic noise counts only how far you are above that floor. Use a short attack and slower release smoothing.
+- Feed the noise model in two ways:
+  - Continuous level adds to noise.
+  - Spikes such as a cough, clap or speaking create a **sound event at the player's position**, with a radius scaled by loudness. The creature goes to INVESTIGATE at that spot, or HUNTs if loud. SDK `talking` stays as a separate signal that confirms speech.
+- HUD: a small mic level bar with the threshold line, plus an on-screen "it heard that" cue. Esc or pause stops the mic tracks, as with the camera. Simulation key `V` fakes a loud noise.
+- Electron: make sure the permission handler allows `media` (audio) for file://, and the CSP doesn't block it. Update the consent text, README and SUBMISSION.md "Consent and Data Handling" for the mic.
+
+### C. Scare director: random jump scares
+- A `scares.js` module. A director picks a random scare every 45–120 s. It has a cooldown, never fires during a chase or catch, and never repeats the same scare twice in a row. Scare intensity rises as the run goes on.
+- Scares (each with its own procedural Web Audio sting or sound effect):
+  1. Lights flicker and go out for 2 s; the flashlight sputters.
+  2. A door nearby slams shut.
+  3. A whisper in one ear (panned left or right) that sounds like breathing or your name.
+  4. The creature's silhouette flashes at the end of a corridor or in a doorway for about 0.3 s and is gone (a fake creature, not the real AI).
+  5. A loud object falls or crashes in a nearby room. This is also a real sound event that pulls the creature there.
+  6. A hand slams the window or wall, with a camera shake.
+  7. The heartbeat audio suddenly doubles plus a screen pulse, for a "something is behind you" moment.
+  8. A radio or music box that suddenly starts playing distorted, then stops.
+- Goal: make the player's real pulse spike, which feeds the noise model, so scares are dangerous as well as cosmetic. Log scare times and show them on the end screen next to the pulse graph ("Biggest scare: door slam, +18 BPM"). This is a game stat, not a health claim.
+- The jump-scare frequency setting is honoured if one is added later. For now, a `scares` toggle in settings or code constant.
+
+### D. Remove hackathon or contest mentions from the app
+- Remove "Challenge entry" wording from `package.json` description and the `README.md` header line, and anything user-facing in-game. Keep `docs/SUBMISSION.md` and PLAN.md as they are; they're not shipped in the app.
+
 ## Milestones
 1. Scaffold, plus the SDK live-metrics debug overlay working (this is the riskiest part, so do it first).
 2. Level generation, world building, player walking with flashlight.

@@ -16,10 +16,11 @@ export function mulberry32(seed) {
 }
 
 const ROOM_NAMES = ['Bedroom', 'Kitchen', 'Hall', 'Bathroom', 'Study', 'Living room', 'Nursery', 'Pantry', 'Cellar', 'Attic'];
+export const HIDE_TYPES = ['wardrobe', 'bed', 'locker', 'closet', 'curtain', 'bigcrate'];
 const PROP_SETS = {
-  Bedroom: ['bed', 'wardrobe', 'shelf'], Kitchen: ['counter', 'table', 'crate'], Hall: ['shelf', 'wardrobe', 'crate'],
-  Bathroom: ['crate', 'shelf'], Study: ['shelf', 'table', 'wardrobe'], 'Living room': ['sofa', 'table', 'shelf'],
-  Nursery: ['bed', 'crate', 'wardrobe'], Pantry: ['shelf', 'crate', 'crate'], Cellar: ['crate', 'crate', 'wardrobe'], Attic: ['crate', 'bed', 'wardrobe'],
+  Bedroom: ['shelf', 'crate'], Kitchen: ['counter', 'table', 'crate'], Hall: ['shelf', 'crate'],
+  Bathroom: ['crate', 'shelf'], Study: ['shelf', 'table'], 'Living room': ['sofa', 'table', 'shelf'],
+  Nursery: ['crate', 'shelf'], Pantry: ['shelf', 'crate', 'crate'], Cellar: ['crate', 'crate'], Attic: ['crate', 'shelf'],
 };
 
 export function generateLevel(seed) {
@@ -98,45 +99,47 @@ export function generateLevel(seed) {
 
   const nearDoor = (x, y) => doors.some((d) => Math.abs(d.x - x) <= 1 && Math.abs(d.y - y) <= 1);
 
-  // Props hug walls, never next to doors.
+  // Props hug walls and never sit next to doors. Hiding spots: every room except the spawn room gets 1+
+  // (about 2-3 on average); the spawn room gets 0-1.
   const props = [];
   const hides = [];
   const solid = grid.map((row) => Uint8Array.from(row));
+  const manhattanToProp = (room, c) => props.some((p) => p.room === room.id && Math.abs(p.x - c.x) + Math.abs(p.y - c.y) <= 1);
+  const place = (room, c, type) => {
+    const facing = c.x === room.x0 ? [1, 0] : c.x === room.x1 ? [-1, 0] : c.y === room.y0 ? [0, 1] : [0, -1];
+    const p = { type, x: c.x, y: c.y, room: room.id, fx: facing[0], fy: facing[1], hide: HIDE_TYPES.includes(type) };
+    props.push(p); solid[c.y][c.x] = 1;
+    if (p.hide) hides.push(p);
+    return p;
+  };
   for (const room of rooms) {
     const set = PROP_SETS[room.name] || ['crate'];
-    const candidates = [];
+    const ring = [];
     for (let y = room.y0; y <= room.y1; y++) for (let x = room.x0; x <= room.x1; x++) {
       const onWall = x === room.x0 || x === room.x1 || y === room.y0 || y === room.y1;
-      if (!onWall || nearDoor(x, y)) continue;
       const corner = (x === room.x0 || x === room.x1) && (y === room.y0 || y === room.y1);
-      if (corner) continue;
-      candidates.push({ x, y });
+      if (onWall && !corner) ring.push({ x, y });
     }
-    shuffle(candidates);
-    const n = 2 + Math.floor(rnd() * 3);
-    let hasHide = false;
-    for (let i = 0; i < n && candidates.length; i++) {
-      const c = candidates.pop();
-      if (props.some((p) => p.room === room.id && Math.abs(p.x - c.x) + Math.abs(p.y - c.y) <= 1)) continue;
-      let type = pick(set);
-      if (!hasHide && i === n - 1 && rnd() < 0.8) type = 'wardrobe';
-      const facing = c.x === room.x0 ? [1, 0] : c.x === room.x1 ? [-1, 0] : c.y === room.y0 ? [0, 1] : [0, -1];
-      const p = { type, x: c.x, y: c.y, room: room.id, fx: facing[0], fy: facing[1], hide: type === 'wardrobe' || type === 'bed' };
-      props.push(p); solid[c.y][c.x] = 1;
-      if (p.hide) { hides.push(p); hasHide = true; }
-    }
+    shuffle(ring);
+    const strict = ring.filter((c) => !nearDoor(c.x, c.y));
+    const relaxed = ring.filter((c) => nearDoor(c.x, c.y) && !doors.some((d) => Math.abs(d.x - c.x) + Math.abs(d.y - c.y) <= 1));
+    const hideTarget = room.id === spawnRoom.id ? (rnd() < 0.5 ? 1 : 0) : 2 + (rnd() < 0.5 ? 1 : 0);
+    const fillTarget = 1 + Math.floor(rnd() * 3);
+    let placedHide = 0, placedFill = 0;
+    const tryPlace = (list, type) => {
+      while (list.length) { const c = list.pop(); if (!manhattanToProp(room, c)) { place(room, c, type); return true; } }
+      return false;
+    };
+    while (placedHide < hideTarget && tryPlace(strict, pick(HIDE_TYPES))) placedHide++;
+    if (room.id !== spawnRoom.id && placedHide === 0) { if (tryPlace(relaxed, pick(HIDE_TYPES))) placedHide++; }
+    while (placedFill < fillTarget && tryPlace(strict, pick(set))) placedFill++;
     if (rnd() < 0.4) { // a table in the middle for some rooms
       const x = room.cx + 1, y = room.cy;
-      if (!doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 2) && !props.some((p) => p.room === room.id && Math.abs(p.x - x) + Math.abs(p.y - y) <= 1)) {
+      if (!doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 2) && !manhattanToProp(room, { x, y })) {
         props.push({ type: 'table', x, y, room: room.id, fx: 0, fy: 0, hide: false }); solid[y][x] = 1;
       }
     }
   }
-  if (!hides.length) { // guarantee a hiding spot somewhere
-    const p = props.find((pp) => pp.type !== 'table');
-    if (p) { p.type = 'wardrobe'; p.hide = true; hides.push(p); }
-  }
-
   const free = (r) => { for (let y = r.cy; y <= r.y1; y++) for (let x = r.cx - 1; x <= r.x1; x++) if (!solid[y][x]) return { x, y }; return { x: r.cx, y: r.cy }; };
   const spawn = { ...free(spawnRoom), room: spawnRoom.id };
   const keyCandidates = rooms.filter((r) => r.id !== spawnRoom.id && r.id !== exitRoom.id && dist[r.id] >= 2);

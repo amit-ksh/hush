@@ -34,7 +34,7 @@ export class World {
     this.scene.add(new THREE.AmbientLight(0x505068, 1.0));
 
     // flashlight
-    this.flash = new THREE.SpotLight(0xfff2d0, 14, 26, 0.5, 0.5, 1);
+    this.flash = new THREE.SpotLight(0xfff2d0, 8, 26, 0.5, 0.5, 1);
     this.flash.position.set(0.15, -0.1, 0);
     this.flash.target.position.set(0, 0, -5);
     this.camera.add(this.flash); this.camera.add(this.flash.target);

@@ -55,7 +55,7 @@ function createWindow() {
   win.webContents.on('console-message', (e) => {
     console.log('[renderer]', e.message);
   });
-  win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: 'smoke' } : undefined);
+  win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'), SMOKE ? { hash: process.env.HUSH_SMOKE_LIVE === '1' ? 'smoke-live' : 'smoke' } : undefined);
   if (DIAG) win.webContents.openDevTools({ mode: 'detach' });
   if (SMOKE) {
     win.webContents.on('did-finish-load', () => console.log('[hush] smoke: page loaded'));

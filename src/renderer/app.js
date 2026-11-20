@@ -11,6 +11,7 @@ import { Hud } from './hud.js';
 
 const $ = (id) => document.getElementById(id);
 const SMOKE = location.hash === '#smoke';
+const SMOKE_LIVE = location.hash === '#smoke-live';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const canvas = $('gl');
@@ -62,6 +63,11 @@ async function init() {
       : (cfg.sdkError ? `SmartSpectra SDK unavailable: ${cfg.sdkError}` : 'SmartSpectra bridge not available.');
   console.log(`[hush] ready; sdkBridge=${bio.hasSdk} keyPresent=${!!cfg.apiKey}`);
   if (SMOKE) { startSim(); }
+  if (SMOKE_LIVE) {
+    try { await bio.startLive(cfg.apiKey); console.log('[smoke-live] startLive resolved, status=' + bio.status); }
+    catch (e) { console.log('[smoke-live] startLive rejected: ' + (e.code ?? '') + ' ' + e.message); }
+    setTimeout(() => console.log('[smoke-live] status=' + bio.status + ' err=' + JSON.stringify(bio.error)), 5000);
+  }
 }
 
 $('btnLive').onclick = async () => {

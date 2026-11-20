@@ -115,6 +115,12 @@ hush/
 ### D. Remove hackathon or contest mentions from the app
 - Remove "Challenge entry" wording from `package.json` description and the `README.md` header line, and anything user-facing in-game. Keep `docs/SUBMISSION.md` and PLAN.md as they are; they're not shipped in the app.
 
+### E. Bring your own API key
+- An in-app key field on the consent and settings screens, with show/hide, "remember on this device" (off by default) and "clear saved key".
+- Precedence: session key, then saved key, then .env, then simulation.
+- Saved only through Electron safeStorage (encrypted) in userData, never in localStorage. The renderer only ever sees a masked hint. The key is never logged.
+- Rejected key or no credits: show a clear message and offer simulation.
+
 ## Milestones
 1. Scaffold, plus the SDK live-metrics debug overlay working (this is the riskiest part, so do it first).
 2. Level generation, world building, player walking with flashlight.

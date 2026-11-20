@@ -76,7 +76,8 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
     const url = (details && details.requestingUrl) || (wc && wc.getURL()) || '';
     const types = (details && details.mediaTypes) || [];
-    callback(permission === 'media' && types.length === 1 && types[0] === 'video' && url.startsWith('file://'));
+    // camera (SDK) or microphone (opt-in level meter), one kind per request, local page only
+    callback(permission === 'media' && types.length === 1 && (types[0] === 'video' || types[0] === 'audio') && url.startsWith('file://'));
   });
   session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media');
 

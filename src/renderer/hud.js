@@ -13,6 +13,11 @@ export class Hud {
   setRoom(n) { $('room').textContent = n; }
   setKey(have) { $('keyIcon').classList.toggle('have', have); $('keytxt').textContent = have ? 'key: found' : 'key: not found'; }
   setStream(stream) { $('cam').srcObject = stream; $('calibCam').srcObject = stream; if (stream) { $('cam').play().catch(() => {}); $('calibCam').play().catch(() => {}); } }
+  mic(on, frac, thr) {
+    $('micWrap').style.display = on ? 'block' : 'none';
+    $('micFill').style.width = `${frac * 100}%`; $('micThr').style.left = `${thr * 100}%`;
+  }
+  heardCue(t) { const e = $('heard'); e.textContent = t; e.style.opacity = 1; clearTimeout(this._ht); this._ht = setTimeout(() => { e.style.opacity = 0; }, 1400); }
   prompt(t) { $('prompt').textContent = t || ''; }
   hint(t) { $('hint').textContent = t || ''; }
   msg(t, secs = 2.5) { const m = $('msg'); m.textContent = t; m.style.opacity = 1; this.msgTimer = secs; }

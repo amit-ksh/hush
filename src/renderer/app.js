@@ -9,6 +9,7 @@ import { Creature, S } from './creature.js';
 import { GameAudio } from './audio.js';
 import { Hud } from './hud.js';
 import { lineOfSight } from './pathfind.js';
+import { MicMonitor } from './mic.js';
 
 const $ = (id) => document.getElementById(id);
 const SMOKE = location.hash === '#smoke';
@@ -24,6 +25,8 @@ const bio = new Biometrics();
 const audio = new GameAudio();
 const hud = new Hud();
 const noise = new NoiseModel();
+const mic = new MicMonitor();
+let micWanted = false;
 
 let cfg = { apiKey: '', sdkError: null };
 let phase = 'consent';          // consent | calib | ready | play | paused | caught | end
@@ -71,8 +74,14 @@ async function init() {
   }
 }
 
+async function setupMic() {
+  micWanted = !!$('chkMic').checked;
+  if (!micWanted) return;
+  try { await mic.start(audio.ctx); } catch (e) { micWanted = false; $('consentErr').textContent = `Microphone unavailable (${e.name || 'error'}). Continuing without it.`; }
+}
+
 $('btnLive').onclick = async () => {
-  audio.init(); consentedCamera = true;
+  audio.init(); consentedCamera = true; await setupMic();
   $('consentErr').textContent = ''; $('btnLive').disabled = true;
   try {
     await bio.startLive(cfg.apiKey);
@@ -83,7 +92,7 @@ $('btnLive').onclick = async () => {
     $('btnLive').disabled = false;
   }
 };
-$('btnSim').onclick = () => { audio.init(); startSim(); };
+$('btnSim').onclick = async () => { audio.init(); await setupMic(); startSim(); };
 
 function startSim() {
   bio.mode = 'sim'; bio.state.source = 'sim'; hud.setMode(false);
@@ -102,6 +111,7 @@ function beginCalibration(sim) {
 function calibTick(dt) {
   const c = calib, s = bio.update(dt);
   c.t += dt;
+  if (mic.active) mic.collectFloor();
   const target = c.sim ? 4 : 20;
   const good = c.sim || (s.face && s.bpm > 40 && s.bpm < 200);
   if (good) {
@@ -121,6 +131,7 @@ function finishCalibration(ok) {
   if (!ok && !c.sim) hud.msg('Calibration incomplete - using default baseline', 4);
   if (c.sim) b.bpm = bio.sim.base.bpm;
   noise.setBaseline(b); baselineSet = true;
+  if (mic.active) console.log('[hush] mic noise floor dBFS', mic.finishFloor().toFixed(1));
   console.log('[hush] baseline', JSON.stringify(b));
   phase = 'ready';
   if (SMOKE) return startGame();
@@ -195,6 +206,15 @@ function hideTarget() {
   return best;
 }
 
+// A real sound from the player (mic spike): the creature hears it at the player's position.
+function soundEvent(loudness) {
+  const g = game; if (!g || phase !== 'play') return;
+  noise.addImpulse(loudness * 35);
+  const heard = g.creature.hearSound({ x: g.player.tileX, y: g.player.tileY, radius: 4 + 14 * loudness, loud: loudness > 0.65 });
+  g.micEvents = (g.micEvents || 0) + 1;
+  hud.heardCue(heard ? 'It heard that.' : 'A sound...');
+}
+
 function promptText() {
   const g = game, { player, level } = g, T = level.TILE;
   if (player.hidden) return player.holdBreath ? 'holding breath...  (E: leave)' : 'E: leave   |   hold SPACE: hold breath';
@@ -226,13 +246,15 @@ function endGame(win) {
     ['Times hunted', g.creature.timesHunted], ['Seed', g.seed], ['Signal source', bio.mode === 'live' ? 'live camera' : 'simulated']];
   $('endStats').innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
   showScreen('end');
+  mic.stop();
   // privacy: camera off whenever we are not playing
   if (bio.mode === 'live') { resumeLive = true; bio.stopLive(); }
 }
 $('btnAgain').onclick = () => { canvas.requestPointerLock(); restartCameraThen(() => startGame()); };
-$('btnMenu').onclick = () => { resumeLive = false; if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
+$('btnMenu').onclick = () => { resumeLive = false; mic.stop(); if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
 
 async function restartCameraThen(fn) {
+  if (micWanted && !mic.active) { try { await mic.start(audio.ctx); mic.analyzer.reset(); } catch { micWanted = false; } }
   if (resumeLive && bio.mode !== 'live') {
     showScreen('none'); hud.msg('Restarting camera...', 3);
     try { await bio.startLive(cfg.apiKey); hud.setMode(true); }
@@ -251,6 +273,7 @@ document.addEventListener('pointerlockchange', () => {
 function pauseGame() {
   phase = 'paused';
   const wasLive = bio.mode === 'live';
+  mic.stop();
   if (wasLive) { resumeLive = true; bio.stopLive(); }
   $('pauseText').textContent = wasLive ? 'Camera stopped. Nothing is measured while paused. Resume restarts the camera.' : 'Paused.';
   showScreen('pause');
@@ -259,12 +282,13 @@ $('btnResume').onclick = () => {
   canvas.requestPointerLock();
   restartCameraThen(() => { showScreen('none'); phase = 'play'; hud.setMode(bio.mode === 'live'); });
 };
-$('btnQuit').onclick = () => { resumeLive = false; hud.show(false); phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
+$('btnQuit').onclick = () => { resumeLive = false; mic.stop(); hud.show(false); phase = 'consent'; showScreen('consent'); $('btnLive').disabled = !(bio.hasSdk && cfg.apiKey); };
 
 // ---------------------------------------------------------------- input extras
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyB') bio.setSimKey('eyes', true);
   if (e.code === 'KeyT') bio.setSimKey('talk', true);
+  if (e.code === 'KeyV' && phase === 'play') mic.injectSpike(0.9);
   if (e.code === 'KeyM' && phase === 'play') {
     if (bio.mode === 'live') { switchToSim(); hud.msg('Simulation mode (B: close eyes, T: whisper)', 3); }
     else if (consentedCamera && cfg.apiKey) {
@@ -288,7 +312,9 @@ function playTick(dt) {
   const b = bio.update(dt);
   if (b.bpm > 0 && b.bpm < 220) g.peakBpm = Math.max(g.peakBpm, b.bpm);
   player.update(dt);
-  noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: 0 });
+  const m = mic.update(dt);
+  if (m.event) soundEvent(m.event.loudness, m.event.over);
+  noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: m.noise });
   creature.update(dt, { px: player.tileX, py: player.tileY, hidden: !!player.hidden, hiddenProp: player.hidden, sawEnter: g.sawEnter, flashlight: player.flashlight, noise });
   if (player.gasp) { noise.addImpulse(30); audio.zap(); hud.msg('You gasp for air.', 2); }
   world.highlight(player.hidden ? null : hideTarget());
@@ -299,6 +325,7 @@ function playTick(dt) {
   audio.heartbeat(b.bpm, noise.value);
 
   hud.update(dt, b, noise.value);
+  hud.mic(mic.active || mic.fakeT > 0, mic.barFrac, mic.thresholdFrac);
   hud.hint(bio.mode === 'live' ? (bio.hint || (b.face ? '' : 'no face found')) : '');
   const room = level.rooms.find((r) => px >= r.x0 - 0.5 && px <= r.x1 + 0.5 && py >= r.y0 - 0.5 && py <= r.y1 + 0.5);
   hud.setRoom(room ? room.name : 'doorway'); hud.prompt(promptText());

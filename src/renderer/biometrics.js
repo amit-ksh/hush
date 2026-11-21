@@ -45,7 +45,8 @@ export class Biometrics {
     this.error = null;
     if (!this.hasSdk) throw new Error('SmartSpectra bridge unavailable (preload not loaded)');
     if (!apiKey) throw new Error('No API key set');
-    if (this.sdk) await this.stopLive();
+    if (this.sdk) this.stopLive();
+    if (this._stopP) await this._stopP; // let the previous session release the camera first
     // FACE_LANDMARKS (11) is skipped: the game only needs blinking, talking and expressions.
     const requested = [...breathingMetrics, ...cardioMetrics, ...faceMetrics.filter((m) => m !== 11)];
     this.sdk = new SmartSpectraSDK({ apiKey, requestedMetrics: requested, enableAccumulatedOutput: false, enableTelemetry: false });
@@ -77,14 +78,21 @@ export class Biometrics {
     this.state.bpm = 0; this.state.br = 0; this.state.rmssd = 0;
   }
 
-  async stopLive() {
-    if (!this.sdk) return;
-    try { await this.sdk.stop(); } catch (e) { console.error('[hush] stop failed', e); }
-    try { this.sdk.destroy(); } catch { /* already destroyed */ }
-    this.sdk = null; this.stream = null;
+  // Stops the camera but keeps this.mode ('live' stays live while paused, so resume restarts it).
+  stopLive() {
+    const sdk = this.sdk;
+    if (!sdk) return this._stopP || Promise.resolve();
+    this.sdk = null; this.stream = null; this.hint = '';
     if (this.onStream) this.onStream(null);
-    this.hint = '';
+    const p = (async () => {
+      try { await sdk.stop(); } catch (e) { console.error('[hush] stop failed', e); }
+      try { sdk.destroy(); } catch { /* already destroyed */ }
+    })();
+    this._stopP = p;
+    p.then(() => { if (this._stopP === p) this._stopP = null; });
+    return p;
   }
+  get liveRunning() { return !!this.sdk; }
 
   _ingest(m) {
     if (!this._loggedFirst) {

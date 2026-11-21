@@ -58,19 +58,13 @@ function errorText(err) {
 bio.onError = (err) => {
   const text = errorText(err);
   if (!err.authOrCredit) { if (phase === 'play') hud.msg(text, 6); else $('consentErr').textContent = text; return; }
-  if (phase === 'play') { switchToSim(); hud.msg(text + ' Switched to simulation.', 6); return; }
-  // Key problem before play: stay on the consent screen (key section visible) and offer simulation.
-  switchToSim(); phase = 'consent'; showScreen('consent'); resumeLive = false;
-  $('consentErr').textContent = text + ' You can play in simulation mode instead.';
+  // Camera mode never silently falls back to simulation: during play, pause with the error.
+  if (phase === 'play' || phase === 'paused') { pauseGame(text + ' Fix the key in the menu, then resume.'); return; }
+  // Key problem before play: stay on the consent screen (key section visible); the player chooses.
+  bio.stopLive(); phase = 'consent'; showScreen('consent'); resumeLive = false;
+  $('consentErr').textContent = text + ' You can play without the camera instead.';
   $('btnLive').disabled = !hasKey();
 };
-
-function switchToSim() {
-  bio.stopLive();
-  bio.mode = 'sim'; bio.state.source = 'sim';
-  bio.state.bpm = bio.sim.bpm = bio.sim.base.bpm; bio.state.br = bio.sim.br = bio.sim.base.br; bio.state.rmssd = bio.sim.rmssd = bio.sim.base.rmssd;
-  hud.setMode(false); hud.hint('');
-}
 
 // ---------------------------------------------------------------- consent
 async function init() {
@@ -92,6 +86,7 @@ async function init() {
 function updateLiveButton() {
   const can = bio.hasSdk && hasKey() && !cfg.sdkError;
   $('btnLive').disabled = !can;
+  if (can && phase === 'consent') $('btnLive').focus({ preventScroll: true });
   $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key below (or PRESAGE_API_KEY in .env) to use the camera.');
 }
 
@@ -126,7 +121,6 @@ function beginCalibration(sim) {
   phase = 'calib'; showScreen('calib');
   calib = { sim, t: 0, valid: 0, bpm: 0, br: 0, brN: 0, rm: 0, rmN: 0, n: 0 };
   $('calibText').textContent = sim ? 'Simulated calibration...' : 'Sit still and breathe normally.';
-  $('btnCalibSim').style.display = sim ? 'none' : '';
   $('calibCam').style.display = sim ? 'none' : '';
   if (SMOKE) { calib.sim = true; }
 }
@@ -160,8 +154,15 @@ function finishCalibration(ok) {
   showScreen('controls');
 }
 $('btnCalibSkip').onclick = () => finishCalibration(false);
-$('btnCalibSim').onclick = () => { switchToSim(); beginCalibration(true); };
-$('btnGo').onclick = () => { canvas.requestPointerLock(); startGame(); };
+$('btnGo').onclick = () => { lockPointer(); startGame(); };
+
+// Pointer lock only drives mouse look; WASD works without it. A failed request is not an error.
+function lockPointer() {
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => hud.msg('Click the screen to look around', 3)); }
+  catch { /* ignore */ }
+}
+canvas.addEventListener('click', () => { if (phase === 'play' && document.pointerLockElement !== canvas) lockPointer(); });
+document.addEventListener('pointerlockerror', () => { if (phase === 'play') hud.msg('Click the screen to look around', 3); });
 
 // ---------------------------------------------------------------- game
 function startGame() {
@@ -296,17 +297,23 @@ function endGame(win) {
   // privacy: camera off whenever we are not playing
   if (bio.mode === 'live') { resumeLive = true; bio.stopLive(); }
 }
-$('btnAgain').onclick = () => { canvas.requestPointerLock(); restartCameraThen(() => startGame()); };
-$('btnMenu').onclick = () => { resumeLive = false; mic.stop(); if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); updateLiveButton(); };
+$('btnAgain').onclick = () => { lockPointer(); restartCameraThen(() => startGame()); };
+$('btnMenu').onclick = () => { resumeLive = false; mic.stop(); bio.stopLive(); if (game) { hud.show(false); } phase = 'consent'; showScreen('consent'); updateLiveButton(); };
 
 async function restartCameraThen(fn) {
   if (micWanted && !mic.active) { try { await mic.start(audio.ctx); mic.analyzer.reset(); } catch { micWanted = false; } }
-  if (resumeLive && bio.mode !== 'live') {
+  if (resumeLive && bio.mode === 'live' && !bio.liveRunning) {
     showScreen('none'); hud.msg('Restarting camera...', 3);
     try { await bio.startLive(await sdkKey()); hud.setMode(true); }
-    catch (e) { switchToSim(); hud.msg('Camera unavailable - simulation mode', 4); }
-    resumeLive = false;
+    catch (e) {
+      // Camera mode was chosen: do not fall back to simulation. Stay paused so the player can retry or quit.
+      bio.mode = 'live'; document.exitPointerLock();
+      if (game) pauseGame(`Camera could not restart (${e.message || e}). Resume to try again.`);
+      else { phase = 'consent'; showScreen('consent'); $('consentErr').textContent = `Camera could not restart (${e.message || e}).`; }
+      return;
+    }
   }
+  resumeLive = false;
   fn();
 }
 
@@ -316,27 +323,32 @@ document.addEventListener('pointerlockchange', () => {
   if (game) game.player.locked = locked;
   if (!locked && phase === 'play') pauseGame();
 });
-function pauseGame() {
+function pauseGame(reason) {
   phase = 'paused';
   const wasLive = bio.mode === 'live';
   mic.stop();
   if (wasLive) { resumeLive = true; bio.stopLive(); }
-  $('pauseText').textContent = wasLive ? 'Camera and mic are off. Resume restarts them.' : (micWanted ? 'Mic is off.' : 'Nothing is being measured.');
+  if (document.pointerLockElement) document.exitPointerLock();
+  const base = wasLive ? 'Camera and mic are off. Resume restarts them.' : (micWanted ? 'Mic is off.' : 'Nothing is being measured.');
+  $('pauseText').textContent = reason || base;
   showScreen('pause');
 }
 $('btnResume').onclick = () => {
-  canvas.requestPointerLock();
+  lockPointer();
   restartCameraThen(() => { showScreen('none'); phase = 'play'; hud.setMode(bio.mode === 'live'); });
 };
-$('btnQuit').onclick = () => { resumeLive = false; mic.stop(); hud.show(false); phase = 'consent'; showScreen('consent'); updateLiveButton(); };
+$('btnQuit').onclick = () => { resumeLive = false; mic.stop(); bio.stopLive(); hud.show(false); phase = 'consent'; showScreen('consent'); updateLiveButton(); };
 
 // ---------------------------------------------------------------- input extras
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyB') bio.setSimKey('eyes', true);
-  if (e.code === 'KeyT') bio.setSimKey('talk', true);
+  if (e.code === 'KeyB' && bio.mode === 'sim') bio.setSimKey('eyes', true);
+  if (e.code === 'KeyT' && bio.mode === 'sim') bio.setSimKey('talk', true);
   if (e.code === 'KeyV' && phase === 'play') mic.injectSpike(0.9);
+  // Without pointer lock the browser does not pause on Esc, so do it here.
+  if (e.code === 'Escape' && phase === 'play' && document.pointerLockElement !== canvas) pauseGame();
   if (e.code === 'KeyM' && phase === 'play') {
-    if (bio.mode === 'live') { switchToSim(); hud.msg('Simulation mode (B: close eyes, T: whisper)', 3); }
+    // Camera mode stays camera mode (no switch to simulation).
+    if (bio.mode === 'live') hud.msg('Camera mode: simulation is off', 2.5);
     else if (consentedCamera && hasKey()) {
       hud.msg('Starting camera...', 2);
       sdkKey().then((k) => bio.startLive(k)).then(() => hud.setMode(true)).catch(() => hud.msg('Camera unavailable', 3));
@@ -367,7 +379,7 @@ function playTick(dt) {
     const sid = g.director.update(dt, { chase });
     if (sid) fireScare(sid);
   }
-  player.update(dt);
+  player.update(dt, true);
   const m = mic.update(dt);
   if (m.event) soundEvent(m.event.loudness, m.event.over);
   noise.update(dt, b, { moving: player.moving, sprinting: player.sprinting, crouching: player.crouching, flashlight: player.flashlight && !player.hidden, hidden: !!player.hidden, holdBreath: player.holdBreath, holdSecs: player.holdSecs, mic: m.noise });
@@ -496,7 +508,7 @@ function frame(now) {
   try {
     if (phase === 'calib') calibTick(dt);
     else if (phase === 'play') playTick(dt);
-    else if (phase === 'caught' && game) game.player.update(dt);
+    else if (phase === 'caught' && game) game.player.update(dt, false);
     if (game && phase !== 'consent') game.world.render();
   } catch (e) { console.error('[hush] frame error', e && e.stack || e); }
   requestAnimationFrame(frame);

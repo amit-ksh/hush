@@ -157,13 +157,13 @@
       <li>Press Esc anytime to stop the camera and mic.</li>
     </ul>
     <label class="chk"><input type="checkbox" id="chkMic"> Use microphone (optional)</label>
+    <div id="keyHint" class="fine" style="margin:8px 0"></div>
+    <details id="keyDetails"><summary>Use your own API key <span class="chip keychip">No key</span></summary><div id="keyBoxConsent"></div></details>
     <div class="btns">
       <button id="btnLive" class="primary">Play with camera</button>
       <button id="btnSim">Play without camera</button>
     </div>
     <div id="consentErr" class="err"></div>
-    <div id="keyHint" class="fine" style="margin-top:8px"></div>
-    <details id="keyDetails"><summary>Use your own API key <span class="chip keychip">No key</span></summary><div id="keyBoxConsent"></div></details>
     <details id="privacy"><summary>Privacy details</summary><div class="body">
       <p><b>Camera:</b> opens only after you press "Play with camera". In that mode the Presage SmartSpectra SDK processes camera video to estimate pulse, breathing, blinking, talking and expression. HUSH uses these only as game signals.</p>
       <p><b>Stored data:</b> the app itself stores and uploads nothing. Processing is handled by the Presage SDK under Presage's privacy policy: https://api.physiology.presagetech.com/privacypolicy. SDK telemetry is disabled.</p>
@@ -182,7 +182,6 @@
     <div id="cHint"></div>
     <div class="btns" style="flex-direction:row;justify-content:center">
       <button id="btnCalibSkip">Skip</button>
-      <button id="btnCalibSim">Use simulation</button>
     </div>
   </div></div>
 
@@ -196,7 +195,7 @@
       <span><b>W A S D</b> move</span><span><b>Mouse</b> look</span>
       <span><b>Shift</b> sprint</span><span><b>C</b> crouch</span>
       <span><b>F</b> flashlight</span><span><b>E</b> take / hide / open</span>
-      <span><b>Space</b> hold breath</span><span><b>M</b> live / sim</span>
+      <span><b>Space</b> hold breath</span><span><b>M</b> start camera</span>
       <span><b>B</b> eyes (sim)</span><span><b>T</b> whisper (sim)</span>
       <span><b>V</b> loud noise</span><span><b>Esc</b> pause</span>
     </div></details>

@@ -30,7 +30,7 @@ export function mountKeySection(container) {
   container.innerHTML = `
     <div class="keybox">
       <div class="keyrow"><input type="password" class="keyinput" placeholder="Presage API key" autocomplete="off" spellcheck="false">
-        <button type="button" class="showkey">Show</button><button type="button" class="usekey">Use</button></div>
+        <button type="button" class="showkey">Show</button></div>
       <div class="keyopts">
         <label><input type="checkbox" class="remember"> Remember (encrypted)</label>
         <a href="#" class="getkey">Get a key</a>
@@ -43,8 +43,19 @@ export function mountKeySection(container) {
   boxes.push(b);
   q('.getkey').onclick = (e) => { e.preventDefault(); api().openRegister(); };
   q('.showkey').onclick = (e) => { const show = b.input.type === 'password'; b.input.type = show ? 'text' : 'password'; e.target.textContent = show ? 'Hide' : 'Show'; };
-  q('.usekey').onclick = async () => {
-    const r = await api().setKey(b.input.value, b.remember.checked);
+  // No "Use" button: the key is applied on paste, Enter or when the field loses focus.
+  let applying = false;
+  const apply = async () => {
+    const v = b.input.value.trim();
+    if (!v || applying) return;
+    applying = true;
+    try { await submit(v); } finally { applying = false; }
+  };
+  b.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+  b.input.addEventListener('paste', () => setTimeout(apply, 0));
+  b.input.addEventListener('change', apply);
+  const submit = async (v) => {
+    const r = await api().setKey(v, b.remember.checked);
     b.input.value = ''; b.input.type = 'password'; q('.showkey').textContent = 'Show';
     b.msg.textContent = r.ok ? (r.message || 'Key set for this session.') : r.message;
     await refreshKeyStatus();

@@ -49,7 +49,7 @@ The creature's hearing radius grows with noise. At 60+ noise it knows exactly wh
 | `E` | Take the key, hide in / leave a hiding spot, unlock the exit |
 | `Space` (hold, while hidden) | Hold your breath |
 | `Esc` | Release the mouse and pause. This stops the camera and microphone |
-| `M` | Switch between live and simulation mode while playing |
+| `M` | Simulation mode only: start the camera (if you consented and have a key). Camera mode never switches to simulation |
 | `B` (hold) | Simulation mode only: close your eyes |
 | `T` (hold) | Simulation mode only: whisper (talking) |
 | `V` | Make a loud noise (fake mic spike) |

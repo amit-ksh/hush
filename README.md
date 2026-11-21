@@ -174,3 +174,12 @@ Textures are CC0 from Poly Haven; the SmartSpectra SDK, Electron, three.js and e
 ## License
 
 The HUSH source code is MIT licensed (see [LICENSE](LICENSE)). The `@smartspectra/node-sdk` package is proprietary to Presage Technologies, is used under Presage's Terms of Service and is **not** covered by this license.
+
+## Build a Windows installer
+
+```
+pnpm install
+pnpm run dist
+```
+
+This writes `release/HUSH Setup 0.1.0.exe`. Run it to install HUSH (Start menu and desktop shortcut), then launch it like any app. The installer is unsigned, so Windows SmartScreen may ask you to choose "More info" then "Run anyway".

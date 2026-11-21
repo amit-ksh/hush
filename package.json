@@ -10,15 +10,17 @@
     "build": "node scripts/build.mjs",
     "start": "pnpm run build && electron .",
     "test": "node test/levelgen.test.mjs && node test/mic.test.mjs && node test/scares.test.mjs && node test/keystore.test.mjs",
-    "assets": "node scripts/fetch-assets.mjs"
+    "assets": "node scripts/fetch-assets.mjs",
+    "dist": "pnpm run build && electron-builder --win"
   },
   "dependencies": {
     "@smartspectra/node-sdk": "^3.5.0",
-    "electron": "^45.4.1",
     "three": "^0.187.0"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "electron": "^45.4.1"
   },
   "packageManager": "pnpm@10.33.4",
   "pnpm": {
@@ -28,5 +30,46 @@
       "koffi",
       "protobufjs"
     ]
+  },
+  "author": "Amit Sharma",
+  "build": {
+    "appId": "com.hush.game",
+    "productName": "HUSH",
+    "copyright": "Copyright (c) Amit Sharma",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/main/**",
+      "src/renderer/**",
+      "dist/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "node_modules/.pnpm/@smartspectra+node-sdk-win32-x64@3.5.0/node_modules/@smartspectra/node-sdk-win32-x64/",
+          "to": "smartspectra/"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

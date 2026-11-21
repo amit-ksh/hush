@@ -55,9 +55,21 @@ function errorText(err) {
   if (err.kind === 'credit') return 'This key has no credits left.';
   return 'SmartSpectra error: ' + err.message;
 }
+let lowFpsRestarts = 0, restartingCam = false;
 bio.onError = (err) => {
   const text = errorText(err);
   // The SDK ends the measurement when the camera frame rate stays too low (code 14). Pause and let the player restart it.
+  if (err.code === 14 && phase === 'play' && lowFpsRestarts < 8 && !restartingCam) {
+    // Restart the camera in the background instead of interrupting the game.
+    lowFpsRestarts++; restartingCam = true;
+    hud.msg('Camera frame rate low, restarting camera...', 3);
+    const key = sdkKey();
+    bio.stopLive();
+    Promise.resolve(key).then((k) => bio.startLive(k)).then(() => hud.setMode(true))
+      .catch(() => { bio.mode = 'live'; if (phase === 'play') pauseGame('Camera could not restart. Add light, close other apps using the camera, then press Resume.'); })
+      .finally(() => { restartingCam = false; });
+    return;
+  }
   if (err.code === 14 && (phase === 'play' || phase === 'paused')) { bio.stopLive(); bio.mode = 'live'; pauseGame('Camera frame rate was too low, so the camera stopped. Add light, close other apps using the camera, then press Resume to restart it.'); return; }
   if (!err.authOrCredit) { if (phase === 'play') hud.msg(text, 6); else $('consentErr').textContent = text; return; }
   // Camera mode never silently falls back to simulation: during play, pause with the error.
@@ -89,7 +101,7 @@ function updateLiveButton() {
   const can = bio.hasSdk && hasKey() && !cfg.sdkError;
   $('btnLive').disabled = !can;
   if (can && phase === 'consent') $('btnLive').focus({ preventScroll: true });
-  $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key below (or PRESAGE_API_KEY in .env) to use the camera.');
+  $('keyHint').textContent = can ? '' : (cfg.sdkError ? 'SmartSpectra SDK unavailable: ' + cfg.sdkError : !bio.hasSdk ? 'SmartSpectra bridge not available.' : 'Add an API key below to use the camera.');
 }
 
 async function setupMic() {
@@ -166,7 +178,14 @@ function lockPointer() {
 canvas.addEventListener('click', () => { if (phase === 'play' && document.pointerLockElement !== canvas) lockPointer(); });
 // Any key press or click while playing re-acquires the pointer lock, so looking around never needs click-and-hold.
 for (const ev of ['keydown', 'pointerdown']) window.addEventListener(ev, () => { if (phase === 'play' && document.pointerLockElement !== canvas) lockPointer(); }, true);
-document.addEventListener('pointerlockerror', () => { if (phase === 'play') hud.msg('Click the screen to look around', 3); });
+// Also retry on mouse movement (throttled) in case the lock was dropped without a click.
+let lastLockTry = 0;
+window.addEventListener('mousemove', () => {
+  if (phase !== 'play' || document.pointerLockElement === canvas) return;
+  const n = performance.now(); if (n - lastLockTry < 1000) return; lastLockTry = n; lockPointer();
+});
+let lockWarned = false;
+document.addEventListener('pointerlockerror', () => { if (phase === 'play' && !lockWarned) { lockWarned = true; hud.msg('Click the screen to look around', 3); } });
 
 // ---------------------------------------------------------------- game
 function startGame() {
@@ -325,7 +344,7 @@ async function restartCameraThen(fn) {
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   if (game) game.player.locked = locked;
-  if (!locked && phase === 'play') pauseGame();
+  // Losing the lock (focus change, camera start) must not stop the game; Esc pauses, and any key/click re-locks.
 });
 function pauseGame(reason) {
   phase = 'paused';
@@ -349,7 +368,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyT' && bio.mode === 'sim') bio.setSimKey('talk', true);
   if (e.code === 'KeyV' && phase === 'play') mic.injectSpike(0.9);
   // Without pointer lock the browser does not pause on Esc, so do it here.
-  if (e.code === 'Escape' && phase === 'play' && document.pointerLockElement !== canvas) pauseGame();
+  if (e.code === 'Escape' && phase === 'play') pauseGame();
   if (e.code === 'KeyM' && phase === 'play') {
     // Camera mode stays camera mode (no switch to simulation).
     if (bio.mode === 'live') hud.msg('Camera mode: simulation is off', 2.5);
@@ -468,7 +487,7 @@ async function runCapture() {
     await sleep(900); await shot('11-dolls'); }
   endGame(true); await sleep(600); await shot('07-end');
   showScreen('pause'); await sleep(300); await shot('08-pause');
-  phase = 'consent'; showScreen('consent'); $('keyDetails').open = true; $('privacy').open = true; await sleep(300); await shot('09-consent-details');
+  phase = 'consent'; showScreen('consent'); $('privacy').open = true; await sleep(300); await shot('09-consent-details');
   console.log('[capture] done');
 }
 

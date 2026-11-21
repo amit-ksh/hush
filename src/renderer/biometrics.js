@@ -136,7 +136,7 @@ export class Biometrics {
   update(dt) {
     if (this.mode === 'live') {
       // Live values go stale (no face) -> let eyes/talking flags fall back.
-      if (performance.now() - this._lastLive > 3000) { this.state.face = false; this.state.eyesClosed = false; this.state.talking = false; }
+      if (performance.now() - this._lastLive > 8000) { this.state.face = false; this.state.eyesClosed = false; this.state.talking = false; }
       return this.state;
     }
     const sm = this.sim, c = sm.ctx, s = this.state;

@@ -105,11 +105,12 @@
     #cross { position:absolute; left:50%; top:50%; width:3px; height:3px; margin:-1px; background:rgba(255,255,255,.4); border-radius:50%; }
     #prompt { position:absolute; left:50%; bottom:11%; transform:translateX(-50%); font-size:14px; letter-spacing:.06em; padding:6px 14px; background:var(--panel); border:1px solid var(--line); border-radius:14px; opacity:1; transition:opacity .25s; white-space:nowrap; }
     #prompt:empty { opacity:0; }
-    #msg { position:absolute; left:50%; top:30%; transform:translateX(-50%); font-size:16px; letter-spacing:.08em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; text-align:center; }
+    #msg { position:absolute; right:24px; top:30%; max-width:300px; font-size:16px; letter-spacing:.08em; opacity:0; transition:opacity .4s; text-shadow:0 0 8px #000; text-align:right; }
     #heard { position:absolute; left:50%; top:42%; transform:translateX(-50%); font-size:18px; letter-spacing:.2em; color:#e0958e; opacity:0; transition:opacity .25s; text-shadow:0 0 10px #000; }
 
     /* ---------- fx overlays ---------- */
     #dim { position:fixed; inset:0; background:#000; opacity:0; transition:opacity .35s; z-index:9; pointer-events:none; }
+    #sideDark { position:fixed; inset:0; z-index:8; pointer-events:none; background:linear-gradient(90deg,rgba(0,0,0,.92) 0,rgba(0,0,0,.65) 12%,rgba(0,0,0,0) 32%,rgba(0,0,0,0) 68%,rgba(0,0,0,.65) 88%,rgba(0,0,0,.92) 100%); }
     #hunt { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .5s; box-shadow:inset 0 0 160px 40px rgba(192,0,0,.6); }
     #hideov { position:fixed; inset:0; z-index:8; pointer-events:none; opacity:0; transition:opacity .3s; background:repeating-linear-gradient(90deg,rgba(0,0,0,.78) 0 26px,rgba(0,0,0,0) 26px 46px),radial-gradient(circle,rgba(0,0,0,.15),rgba(0,0,0,.85) 95%); }
     #flashFx { position:fixed; inset:0; background:#fff; opacity:0; z-index:25; pointer-events:none; }
@@ -127,7 +128,7 @@
 </head>
 <body>
   <canvas id="gl"></canvas>
-  <div id="flashFx"></div><div id="pulseFx"></div><div id="heartFx"></div><div id="dim"></div><div id="hunt"></div><div id="hideov"></div>
+  <div id="sideDark"></div><div id="flashFx"></div><div id="pulseFx"></div><div id="heartFx"></div><div id="dim"></div><div id="hunt"></div><div id="hideov"></div>
 
   <div id="hud">
     <div id="keyIcon">&#128477;</div><span id="keytxt"></span>
@@ -160,7 +161,7 @@
     </ul>
     <label class="chk"><input type="checkbox" id="chkMic"> Use microphone (optional)</label>
     <div id="keyHint" class="fine" style="margin:8px 0"></div>
-    <details id="keyDetails"><summary>Use your own API key <span class="chip keychip">No key</span></summary><div id="keyBoxConsent"></div></details>
+    <div id="keyDetails"><div style="font-size:13px;margin-top:var(--s1)">Enter your Presage API key <span class="chip keychip">No key</span></div><div id="keyBoxConsent"></div></div>
     <div class="btns">
       <button id="btnLive" class="primary">Play with camera</button>
       <button id="btnSim">Play without camera</button>

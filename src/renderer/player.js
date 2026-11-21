@@ -27,7 +27,8 @@ export class Player {
     this._up = (e) => this.keys.delete(e.code);
     this._move = (e) => {
       // Pointer lock gives relative motion; without it, hold the left button (or press and drag on the touchpad) to look.
-      if (!this.locked && !(e.buttons & 1)) return;
+      // Without pointer lock the cursor stops at the screen edge: keep turning while it rests there.
+      this.edge = this.locked ? 0 : (e.clientX <= 1 ? 1 : e.clientX >= window.innerWidth - 2 ? -1 : 0);
       this.yaw -= e.movementX * 0.0022;
       this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - e.movementY * 0.0022));
       this._clampPeek();
@@ -67,7 +68,7 @@ export class Player {
     const k = this.keys;
     this.moving = false; this.sprinting = false;
     // Arrow keys also turn the view (no mouse or touchpad needed).
-    const turn = (k.has('ArrowLeft') ? 1 : 0) - (k.has('ArrowRight') ? 1 : 0), tilt = (k.has('ArrowUp') ? 1 : 0) - (k.has('ArrowDown') ? 1 : 0);
+    const turn = (k.has('ArrowLeft') ? 1 : 0) - (k.has('ArrowRight') ? 1 : 0) + (this.locked ? 0 : (this.edge || 0)), tilt = (k.has('ArrowUp') ? 1 : 0) - (k.has('ArrowDown') ? 1 : 0);
     if (turn || tilt) { this.yaw += turn * 1.8 * dt; this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch + tilt * 1.2 * dt)); this._clampPeek(); }
     if (!this.hidden && canMove) {
       let f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);

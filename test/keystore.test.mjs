@@ -31,7 +31,7 @@ assert.equal(validateKey(null).ok, false);
 
 // status text
 assert.equal(statusLine('saved'), 'Using saved key');
-assert.equal(statusLine('env'), 'Using .env key');
+assert.equal(statusLine('env'), 'Using the configured key');
 assert.equal(statusLine('none'), 'No key: simulation only');
 assert.ok(statusLine('session').includes('session'));
 

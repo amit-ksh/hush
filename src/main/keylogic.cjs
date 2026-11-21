@@ -34,7 +34,7 @@ function statusLine(source) {
   switch (source) {
     case 'session': return 'Using key entered this session';
     case 'saved': return 'Using saved key';
-    case 'env': return 'Using .env key';
+    case 'env': return 'Using the configured key';
     default: return 'No key: simulation only';
   }
 }

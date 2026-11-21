@@ -16,7 +16,7 @@ export async function refreshKeyStatus() {
 }
 
 const SRC = { session: 'session', saved: 'saved', env: '.env' };
-function chipText() { return status.source === 'none' ? 'No key' : `Key: ${SRC[status.source]} ${status.hint}`; }
+function chipText() { return status.source === 'none' ? 'No key' : 'Key set'; }
 
 function paint(b) {
   for (const c of document.querySelectorAll('.keychip')) c.textContent = chipText();

@@ -164,6 +164,8 @@ function lockPointer() {
   catch { /* ignore */ }
 }
 canvas.addEventListener('click', () => { if (phase === 'play' && document.pointerLockElement !== canvas) lockPointer(); });
+// Any key press or click while playing re-acquires the pointer lock, so looking around never needs click-and-hold.
+for (const ev of ['keydown', 'pointerdown']) window.addEventListener(ev, () => { if (phase === 'play' && document.pointerLockElement !== canvas) lockPointer(); }, true);
 document.addEventListener('pointerlockerror', () => { if (phase === 'play') hud.msg('Click the screen to look around', 3); });
 
 // ---------------------------------------------------------------- game

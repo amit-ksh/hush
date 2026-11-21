@@ -162,6 +162,40 @@ export class World {
     this.fake = this._buildCreature(); this.fake.group.visible = false; this.fake.glow.intensity = 1.2; this.scene.add(this.fake.group);
     this.slab = new THREE.Mesh(new THREE.BoxGeometry(TILE, 2.2, 0.1), pbr('rough_pine_door', 1, 1, { roughness: 1 }));
     this.slab.visible = false; this.scene.add(this.slab);
+    this.crawler = this._buildCrawler(); this.crawler.group.visible = false; this.scene.add(this.crawler.group); this.crawlT = 0;
+    this.dolls = [0, 1, 2].map(() => { const d = this._buildDoll(); d.group.visible = false; this.scene.add(d.group); return d; }); this.dollT = 0;
+  }
+
+  // a small pale many-legged thing that scuttles along the floor
+  _buildCrawler() {
+    const g = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: 0x8a8378, emissive: 0x1a1410, roughness: 0.7 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), skin); body.scale.set(1, 0.45, 1.5); body.position.y = 0.17; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), skin); head.position.set(0, 0.2, 0.26); g.add(head);
+    const eye = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+    for (const x of [-0.035, 0.035]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), eye); e.position.set(x, 0.22, 0.34); g.add(e); }
+    const legs = [];
+    for (let i = 0; i < 8; i++) {
+      const side = i % 2 ? 1 : -1, row = Math.floor(i / 2) - 1.5;
+      const l = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.02), skin); l.geometry.translate(side * 0.14, 0, 0);
+      l.position.set(side * 0.1, 0.14, row * 0.1); l.rotation.z = side * -0.5; g.add(l); legs.push(l);
+    }
+    return { group: g, legs, t: 0, a: new THREE.Vector2(), b: new THREE.Vector2(), dur: 1 };
+  }
+
+  // a hanging doll: rope from the ceiling, dress, pale head, black eyes, red mouth. The pivot sits at the ceiling.
+  _buildDoll() {
+    const pivot = new THREE.Group(), body = new THREE.Group();
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.6, 5), new THREE.MeshStandardMaterial({ color: 0x2a1d12 })); rope.position.y = -0.8;
+    const dress = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 10), new THREE.MeshStandardMaterial({ color: 0x6b6256, emissive: 0x151210, roughness: 1 })); dress.position.y = -0.2; dress.rotation.x = Math.PI;
+    const faceMat = new THREE.MeshStandardMaterial({ color: 0xd8d0c0, emissive: 0x2a2620, roughness: 0.5 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), faceMat); head.position.y = 0.1;
+    const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    for (const x of [-0.04, 0.04]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), black); e.position.set(x, 0.12, 0.095); body.add(e); }
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.01), new THREE.MeshBasicMaterial({ color: 0x8a0a0a })); mouth.position.set(0, 0.05, 0.105);
+    body.add(dress, head, mouth); body.position.y = -1.2;
+    pivot.add(rope, body);
+    return { group: pivot, body, phase: Math.random() * 6 };
   }
 
   _buildCreature() {
@@ -190,6 +224,20 @@ export class World {
     c.legL.rotation.x = Math.sin(c.t * 5) * 0.5 * Math.min(1, speed); c.legR.rotation.x = -c.legL.rotation.x;
     c.group.position.y = Math.abs(Math.sin(c.t * 5)) * 0.04;
     c.glow.intensity = hunting ? 2.4 : 1.0;
+  }
+
+  showCrawler(x0, z0, x1, z1, secs) {
+    const c = this.crawler; c.a.set(x0, z0); c.b.set(x1, z1); c.dur = secs; c.t = 0;
+    c.group.rotation.y = Math.atan2(x1 - x0, z1 - z0); c.group.position.set(x0, 0, z0); c.group.visible = true; this.crawlT = secs;
+  }
+  // three dolls hanging from the ceiling around (x,z), turned to face the player
+  showDolls(x, z, heading, secs) {
+    const off = [-0.55, 0.05, 0.6], px = Math.cos(heading), pz = -Math.sin(heading);
+    this.dolls.forEach((d, i) => {
+      d.group.position.set(x + px * off[i], WALL_H - 0.02, z + pz * off[i]); d.group.rotation.set(0, heading, 0);
+      d.body.position.y = -(1.0 + i * 0.15); d.group.visible = true;
+    });
+    this.dollT = secs;
   }
 
   highlight(prop) { for (const h of this.level.hides) if (h.rim) h.rim.visible = h === prop; }
@@ -228,6 +276,18 @@ export class World {
       if (this.blackoutT <= 0) { this.ambient.intensity = 1.0; this.flash.intensity = 8; }
     } else {
       this.roomLights.forEach((l, i) => { l.intensity = 0.9 + (i % 3 === 0 ? (Math.random() - 0.5) * 0.25 * (Math.sin(time * 3 + i) > 0.8 ? 1 : 0) : 0); });
+    }
+    if (this.crawlT > 0) {
+      this.crawlT -= dt; const c = this.crawler; c.t += dt; const k = Math.min(1, c.t / c.dur);
+      c.group.position.x = c.a.x + (c.b.x - c.a.x) * k; c.group.position.z = c.a.y + (c.b.y - c.a.y) * k;
+      c.legs.forEach((l, i) => { l.rotation.y = Math.sin(c.t * 40 + i * 1.7) * 0.5; });
+      c.group.position.y = Math.abs(Math.sin(c.t * 30)) * 0.01;
+      if (this.crawlT <= 0) c.group.visible = false;
+    }
+    if (this.dollT > 0) {
+      this.dollT -= dt;
+      this.dolls.forEach((d, i) => { d.phase += dt * (1.3 + i * 0.2); d.group.rotation.z = Math.sin(d.phase) * 0.12; d.group.rotation.x = Math.cos(d.phase * 0.8) * 0.06; });
+      if (this.dollT <= 0) this.dolls.forEach((d) => { d.group.visible = false; });
     }
     if (this.fakeT > 0) { this.fakeT -= dt; if (this.fakeT <= 0) this.fake.group.visible = false; }
     if (this.slabT > 0) { this.slabT -= dt; this.slab.scale.x = Math.min(1, (1.3 - this.slabT) * 8); if (this.slabT <= 0) this.slab.visible = false; }

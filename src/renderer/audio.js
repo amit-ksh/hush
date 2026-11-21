@@ -53,6 +53,14 @@ export class GameAudio {
       this.nextBeat += 60 / (bpm * this.beatMul);
     }
   }
+  // Footsteps of the creature: only audible when it is near (<14 m), louder and heavier the closer it is.
+  creatureStep(x, z, dist) {
+    if (!this.ctx || dist > 14) return;
+    const v = Math.pow(1 - dist / 14, 1.5), t = this.ctx.currentTime, d = this._pannerAt(x, z);
+    this._noise(t, 0.14, 0.4 + 1.4 * v, 'lowpass', 320, 70, d);
+    this._tone(55, t, 0.18, 0.15 + 0.6 * v, 'sine', d);
+    this._noise(t + 0.02, 0.05, 0.1 + 0.4 * v, 'bandpass', 1400, 900, d);   // scrape / click of a heel
+  }
   step() { if (this.ctx) this._noise(this.ctx.currentTime, 0.12, 0.9, 'lowpass', 260, 90, this.panner); }
   growl() {
     if (!this.ctx) return; const t = this.ctx.currentTime;
@@ -106,5 +114,27 @@ export class GameAudio {
     const ws = this.ctx.createWaveShaper(); const curve = new Float32Array(256); for (let i = 0; i < 256; i++) { const v = i / 128 - 1; curve[i] = Math.tanh(v * 4); } ws.curve = curve; ws.connect(d);
     const notes = [659, 587, 370, 415, 554, 494, 294, 330, 494, 440, 277, 330, 440];
     notes.forEach((f, i) => { const st = t + i * 0.32 - i * i * 0.004; this._tone(f * (1 - i * 0.012), st, 0.5, 0.18, 'triangle', ws); });
+  }
+
+  // A small creature skittering across the floor from (x0,z0) to (x1,z1) over `dur` seconds.
+  crawlerSkitter(x0, z0, x1, z1, dur) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, p = this._pannerAt(x0, z0);
+    if (p.positionX) { p.positionX.setValueAtTime(x0, t); p.positionX.linearRampToValueAtTime(x1, t + dur); p.positionZ.setValueAtTime(z0, t); p.positionZ.linearRampToValueAtTime(z1, t + dur); p.positionY.value = 0.2; }
+    for (let i = 0; i < dur * 22; i++) this._noise(t + i * 0.045 + Math.random() * 0.02, 0.03, 0.5, 'highpass', 3500 + Math.random() * 2500, 2500, p);
+    this._tone(1400, t, dur, 0.06, 'sawtooth', p);                                   // thin hissing rasp
+    this._noise(t, 0.6, 1.2, 'bandpass', 3200, 1200, p); this._tone(1800, t, 0.4, 0.3, 'sawtooth', p);   // sudden screech on appearance
+  }
+  // Hanging dolls: a music-box wail that goes sour, a rope creak and a child-like cry.
+  dollSound(x, z) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, d = this._pannerAt(x, z);
+    this._noise(t, 1.2, 0.5, 'bandpass', 420, 900, d);                                // rope creak
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain(), lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(520, t + 0.3); o.frequency.exponentialRampToValueAtTime(260, t + 2.2);
+    lfo.frequency.value = 6; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.setValueAtTime(0, t + 0.3); g.gain.linearRampToValueAtTime(0.35, t + 0.5); g.gain.linearRampToValueAtTime(0, t + 2.3);
+    o.connect(g); g.connect(d); o.start(t + 0.3); lfo.start(t + 0.3); o.stop(t + 2.4); lfo.stop(t + 2.4);
+    [0.4, 0.9, 1.4].forEach((s, i) => this._tone(880 - i * 90, t + s, 0.4, 0.14, 'square', d));   // cracked giggle
+    this._noise(t + 1.9, 0.7, 1.1, 'highpass', 2500, 5000, d);                        // sudden screech
+    this._tone(90, t + 1.9, 0.6, 0.7, 'sine', d);
   }
 }

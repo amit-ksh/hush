@@ -24,8 +24,8 @@ window.addEventListener('unhandledrejection', (e) => { ERRS++; _ce('[hush] unhan
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });   // light on the GPU/CPU so the camera SDK keeps its frame rate
+renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 
 const bio = new Biometrics();
@@ -57,6 +57,8 @@ function errorText(err) {
 }
 bio.onError = (err) => {
   const text = errorText(err);
+  // The SDK ends the measurement when the camera frame rate stays too low (code 14). Pause and let the player restart it.
+  if (err.code === 14 && (phase === 'play' || phase === 'paused')) { bio.stopLive(); bio.mode = 'live'; pauseGame('Camera frame rate was too low, so the camera stopped. Add light, close other apps using the camera, then press Resume to restart it.'); return; }
   if (!err.authOrCredit) { if (phase === 'play') hud.msg(text, 6); else $('consentErr').textContent = text; return; }
   // Camera mode never silently falls back to simulation: during play, pause with the error.
   if (phase === 'play' || phase === 'paused') { pauseGame(text + ' Fix the key in the menu, then resume.'); return; }
@@ -179,7 +181,7 @@ function startGame() {
 
   player.onFlashToggle = (on) => { world.flash.visible = on; };
   player.onInteract = () => interact();
-  creature.onStep = () => audio.step();
+  creature.onStep = () => audio.creatureStep(creature.x * level.TILE, creature.y * level.TILE, Math.hypot(creature.x - player.tileX, creature.y - player.tileY) * level.TILE);
   creature.onSearchStart = () => { audio.searchSound(); hud.msg('It is searching...', 2.6); };
   creature.onGiveUp = () => { game.sawEnter = false; hud.msg('It gave up. For now.', 2.5); };
   creature.onState = (s) => {
@@ -392,6 +394,7 @@ function playTick(dt) {
   audio.setListener(player.x, player.z, player.yaw); audio.setCreaturePos(creature.x * T, creature.y * T);
   audio.heartbeat(b.bpm, noise.value);
 
+  hud.setStress(b.bpm > 0 ? (b.bpm - (noise.baseline.bpm + 6)) / 30 : 0);
   hud.update(dt, b, noise.value);
   hud.mic(mic.active || mic.fakeT > 0, mic.barFrac, mic.thresholdFrac);
   hud.hint(bio.mode === 'live' ? (bio.hint || (b.face ? '' : 'no face found')) : '');
@@ -472,7 +475,7 @@ function smokeStep(g, b, dt) {
   if (g.t > 2.5 + smoke.i * 0.7 && smoke.i < SCARE_IDS_ALL.length) {
     const id = SCARE_IDS_ALL[smoke.i++];
     let ok = false;
-    if (id === 'silhouette') { for (let k = 0; k < 8 && !ok; k++) { player.yaw = k * Math.PI / 4; ok = guard(id, () => fireScare(id)); } }
+    if (id === 'silhouette' || id === 'crawler') { for (let k = 0; k < 8 && !ok; k++) { player.yaw = k * Math.PI / 4; ok = guard(id, () => fireScare(id)); } }
     else ok = guard(id, () => fireScare(id));
     smoke.scares[id] = ok; console.log('[smoke] scare ' + id + ' -> ' + (ok ? 'ok' : 'NOT STAGED'));
   }

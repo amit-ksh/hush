@@ -17,7 +17,7 @@ function simulate(seed, chaseFn = () => false) {
 for (let seed = 1; seed <= 20; seed++) {
   const { fires } = simulate(seed);
   assert.ok(fires.length > 10, `seed ${seed}: too few scares (${fires.length})`);
-  assert.ok(fires[0].t >= 45 && fires[0].t <= 121, `first scare time ${fires[0].t}`);
+  assert.ok(fires[0].t >= 15 && fires[0].t <= 31, `first scare time ${fires[0].t}`);
   for (let i = 1; i < fires.length; i++) {
     assert.ok(fires[i].t - fires[i - 1].t >= 44.9, `cooldown violated: ${fires[i].t - fires[i - 1].t}`);
     assert.ok(fires[i].t - fires[i - 1].t <= 121, 'gap exceeds maximum');

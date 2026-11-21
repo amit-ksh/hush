@@ -5,7 +5,7 @@ export class Hud {
   constructor() {
     this.wave = $('wave').getContext('2d');
     this.samples = new Array(190).fill(19);
-    this.phase = 0; this.acc = 0; this.msgTimer = 0;
+    this.phase = 0; this.acc = 0; this.msgTimer = 0; this.stress = 0; this.beatT = 0;
   }
   show(on) { $('hud').classList.toggle('show', on); }
   setMode(live) { const m = $('mode'); m.textContent = live ? 'LIVE' : 'SIMULATED'; m.className = live ? 'live' : 'sim'; $('cam').style.display = live ? 'block' : 'none'; $('simbox').style.display = 'none'; }
@@ -24,7 +24,14 @@ export class Hud {
   hint(t) { $('hint').textContent = t || ''; }
   msg(t, secs = 2.5) { const m = $('msg'); m.textContent = t; m.style.opacity = 1; this.msgTimer = secs; }
 
+  // stress 0..1 = how far the heart rate is above the player's baseline.
+  setStress(s) { this.stress = Math.max(0, Math.min(1, s)); }
+
   update(dt, bio, noise) {
+    $('vitals').classList.toggle('hot', this.stress > 0.35);
+    this.beatT += dt * Math.max(0.8, (bio.bpm > 0 ? bio.bpm : 70) / 60);
+    const ph = this.beatT % 1, thump = Math.exp(-Math.pow((ph - 0.08) / 0.05, 2)) + 0.6 * Math.exp(-Math.pow((ph - 0.3) / 0.06, 2));
+    $('heartFx').style.opacity = this.stress > 0.15 ? Math.min(1, thump * this.stress * 1.1).toFixed(3) : 0;
     $('bpm').textContent = bio.bpm > 0 ? Math.round(bio.bpm) : '--';
     $('br').textContent = bio.br > 0 ? Math.round(bio.br) : '--';
     $('noiseFill').style.width = `${noise}%`;

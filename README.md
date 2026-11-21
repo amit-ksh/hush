@@ -4,7 +4,7 @@
 
 You are locked in a dark house with a creature that cannot see well but hears everything. Find the key, unlock the exit and get out. Your webcam (through the Presage SmartSpectra SDK) and, optionally, your microphone feed a "noise" meter: a racing pulse, fast breathing, a gasp, a whisper or a cough all make noise the creature can follow. Staying calm, hiding and even closing your eyes become real tactics. No camera or key? A simulation mode lets anyone play.
 
-**Download:** get `HUSH Setup 0.1.0.exe` from the [latest release](https://github.com/amit-ksh/hush/releases/latest), run it and play (Windows 64-bit). The installer is unsigned, so SmartScreen may ask you to choose "More info" then "Run anyway".
+**Download:** get `HUSH Setup 0.1.1.exe` from the [latest release](https://github.com/amit-ksh/hush/releases/latest), run it and play (Windows 64-bit). The installer is unsigned, so SmartScreen may ask you to choose "More info" then "Run anyway".
 
 <!-- screenshot -->
 
@@ -185,4 +185,4 @@ pnpm install
 pnpm run dist
 ```
 
-This writes `release/HUSH Setup 0.1.0.exe`. Run it to install HUSH (Start menu and desktop shortcut), then launch it like any app. The installer is unsigned, so Windows SmartScreen may ask you to choose "More info" then "Run anyway".
+This writes `release/HUSH Setup 0.1.1.exe`. Run it to install HUSH (Start menu and desktop shortcut), then launch it like any app. The installer is unsigned, so Windows SmartScreen may ask you to choose "More info" then "Run anyway".

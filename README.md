@@ -4,6 +4,8 @@
 
 You are locked in a dark house with a creature that cannot see well but hears everything. Find the key, unlock the exit and get out. Your webcam (through the Presage SmartSpectra SDK) and, optionally, your microphone feed a "noise" meter: a racing pulse, fast breathing, a gasp, a whisper or a cough all make noise the creature can follow. Staying calm, hiding and even closing your eyes become real tactics. No camera or key? A simulation mode lets anyone play.
 
+**Download:** get `HUSH Setup 0.1.0.exe` from the [latest release](https://github.com/amit-ksh/hush/releases/latest), run it and play (Windows 64-bit). The installer is unsigned, so SmartScreen may ask you to choose "More info" then "Run anyway".
+
 <!-- screenshot -->
 
 ## Features
@@ -13,10 +15,11 @@ You are locked in a dark house with a creature that cannot see well but hears ev
 - **Creature AI on a tile grid (A\* pathfinding).** States: `WANDER`, `INVESTIGATE` (goes to where it heard something), `HUNT` (sees you or hears your exact position), `SEARCH` (checks a hiding spot) and `CATCH`.
 - **Biometric signals** from the SmartSpectra SDK: pulse rate, breathing rate, HRV (rmssd), fear/surprise expression, blinking (eyes closed) and talking.
 - **Microphone sound events (optional).** Loud sounds you make create a sound event at your position that the creature investigates, or hunts if it is loud.
-- **Scare director.** Random jump scares every 45-120 s (more frequent as the run goes on), never during a chase or a catch, never the same one twice in a row: lights out, door slam, whisper, a figure in a doorway, a crash in another room, a hand on the wall, a doubled heartbeat, a music box. Each has procedural audio. They are designed to make you jump, and your reaction feeds the noise meter.
+- **Scare director.** Random jump scares every 30-75 s (the first one comes within about 30 s and is always a visible one; they get more frequent as the run goes on), never during a chase or a catch, never the same one twice in a row: lights out, door slam, whisper, a figure in a doorway, a crash in another room, a hand on the wall, a doubled heartbeat, a music box, a crawler that appears suddenly in front of you, and hanging dolls that drop from the ceiling. Each has procedural audio. They are designed to make you jump, and your reaction feeds the noise meter.
 - **Simulation mode** with synthetic signals that react to gameplay, for playing without a key or camera.
 - **End-screen stats:** time, peak pulse, times hunted, seed, signal source, a pulse graph with scares marked and your "biggest scare".
-- Procedural audio (heartbeat synced to your BPM, drone, footsteps, growl, creaks, stings) and CC0 PBR textures; props and the creature are built from primitives.
+- **Heartbeat effect.** When your pulse climbs above your baseline, a red vignette pulses at the screen edges in time with your heartbeat and the BPM turns red.
+- Procedural audio (heartbeat synced to your BPM, drone, creature footsteps that you only hear when it is near, growl, creaks, stings) and CC0 PBR textures; props and the creature are built from primitives.
 
 ## How your body controls the game
 

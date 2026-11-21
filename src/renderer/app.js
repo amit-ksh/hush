@@ -459,6 +459,11 @@ async function runCapture() {
   fireScare('silhouette') || (player.yaw += 1, fireScare('silhouette'));
   world.fakeT = 3; await sleep(500); await shot('06-scare');
   await sleep(11000);
+  { if (player.hidden) player.leaveHiding(); const v3 = bestView(g); player.yaw = v3.yaw; player.pitch = 0; player.flashlight = true; world.flash.visible = true;
+    for (let k = 0; k < 8 && !fireScare('crawler'); k++) player.yaw = k * Math.PI / 4;
+    await sleep(350); await shot('10-crawler'); await sleep(1500);
+    for (let k = 0; k < 8 && !fireScare('dolls'); k++) player.yaw = k * Math.PI / 4;
+    await sleep(900); await shot('11-dolls'); }
   endGame(true); await sleep(600); await shot('07-end');
   showScreen('pause'); await sleep(300); await shot('08-pause');
   phase = 'consent'; showScreen('consent'); $('keyDetails').open = true; $('privacy').open = true; await sleep(300); await shot('09-consent-details');

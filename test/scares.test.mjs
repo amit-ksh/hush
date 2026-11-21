@@ -19,8 +19,8 @@ for (let seed = 1; seed <= 20; seed++) {
   assert.ok(fires.length > 10, `seed ${seed}: too few scares (${fires.length})`);
   assert.ok(fires[0].t >= 15 && fires[0].t <= 31, `first scare time ${fires[0].t}`);
   for (let i = 1; i < fires.length; i++) {
-    assert.ok(fires[i].t - fires[i - 1].t >= 44.9, `cooldown violated: ${fires[i].t - fires[i - 1].t}`);
-    assert.ok(fires[i].t - fires[i - 1].t <= 121, 'gap exceeds maximum');
+    assert.ok(fires[i].t - fires[i - 1].t >= 29.9, `cooldown violated: ${fires[i].t - fires[i - 1].t}`);
+    assert.ok(fires[i].t - fires[i - 1].t <= 76, 'gap exceeds maximum');
     assert.notEqual(fires[i].id, fires[i - 1].id, 'same scare twice in a row');
     assert.ok(SCARE_IDS.includes(fires[i].id));
   }
@@ -64,4 +64,4 @@ assert.equal(seen.size, SCARE_IDS.length, 'all scare types reachable');
   for (let i = 0; i < 5000; i++) assert.equal(d.update(0.1), null);
 }
 
-console.log(`scares OK: 20 seeds x 30 min (cooldown>=45s, max gap<=120s, no repeats, none during chase, all ${SCARE_IDS.length} types reachable)`);
+console.log(`scares OK: 20 seeds x 30 min (cooldown>=30s, max gap<=75s, no repeats, none during chase, all ${SCARE_IDS.length} types reachable)`);

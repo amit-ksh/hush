@@ -13,7 +13,7 @@ export const SCARE_LABELS = {
 export class ScareDirector {
   // rnd: () => [0,1). minGap/maxGap in seconds. Hard rules: gap >= minGap, never the same scare twice in a row,
   // nothing during a chase/catch (plus a short grace period afterwards).
-  constructor({ rnd = Math.random, enabled = SCARES_ENABLED, minGap = 45, maxGap = 120, grace = 3 } = {}) {
+  constructor({ rnd = Math.random, enabled = SCARES_ENABLED, minGap = 30, maxGap = 75, grace = 3 } = {}) {
     Object.assign(this, { rnd, enabled, minGap, maxGap, grace });
     this.t = 0; this.last = null; this.history = []; this.graceLeft = 0;
     this.next = 15 + this.rnd() * 15;            // the first scare comes early so the player sees what the game does
@@ -33,7 +33,8 @@ export class ScareDirector {
     if (chase) { this.graceLeft = this.grace; return null; }
     if (this.graceLeft > 0) { this.graceLeft -= dt; return null; }
     if (this.t < this.next) return null;
-    const options = SCARE_IDS.filter((id) => id !== this.last);
+    // the first scare is always a visible one, so the player sees what the game does
+    const options = this.history.length ? SCARE_IDS.filter((id) => id !== this.last) : ['crawler', 'dolls'];
     const id = options[Math.floor(this.rnd() * options.length)];
     this.history.push({ t: this.t, id, prev: this.last, prevNext: this.next });
     this.last = id; this.next = this._gap();
